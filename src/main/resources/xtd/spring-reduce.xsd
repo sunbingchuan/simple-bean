@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema
+	xmlns="http://www.think678.com/schema/spring-reduce"
+	xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+	targetNamespace="http://www.think678.com/schema/spring-reduce">
+
+
+	<xsd:complexType name="identifiedType" abstract="true">
+		<xsd:attribute name="id" type="xsd:string">
+		</xsd:attribute>
+	</xsd:complexType>
+
+	<xsd:element name="beans">
+		<xsd:complexType>
+			<xsd:sequence>
+				<xsd:choice minOccurs="0" maxOccurs="unbounded">
+					<xsd:element ref="import" />
+					<xsd:element ref="bean" />
+					<xsd:element ref="component-scan" />
+				</xsd:choice>
+			</xsd:sequence>
+			<xsd:attribute name="profile" use="optional"
+				type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="default-lazy-init"
+				default="default" type="defaultable-boolean">
+			</xsd:attribute>
+			<xsd:attribute name="default-merge" default="default"
+				type="defaultable-boolean">
+			</xsd:attribute>
+			<xsd:attribute name="default-autowire"
+				default="default">
+				<xsd:simpleType>
+					<xsd:restriction base="xsd:NMTOKEN">
+						<xsd:enumeration value="default" />
+						<xsd:enumeration value="no" />
+						<xsd:enumeration value="byName" />
+						<xsd:enumeration value="byType" />
+						<xsd:enumeration value="constructor" />
+					</xsd:restriction>
+				</xsd:simpleType>
+			</xsd:attribute>
+			<xsd:attribute name="default-autowire-candidates"
+				type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="default-init-method"
+				type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="default-destroy-method"
+				type="xsd:string">
+			</xsd:attribute>
+		</xsd:complexType>
+	</xsd:element>
+
+	<xsd:element name="bean">
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:extension base="identifiedType">
+					<xsd:group ref="beanElements" />
+					<xsd:attributeGroup ref="beanAttributes" />
+				</xsd:extension>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+
+	<xsd:element name="import">
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:restriction base="xsd:anyType">
+					<xsd:attribute name="resource" type="xsd:string"
+						use="required">
+					</xsd:attribute>
+				</xsd:restriction>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+
+	<xsd:group name="beanElements">
+		<xsd:sequence>
+			<xsd:choice minOccurs="0" maxOccurs="unbounded">
+				<xsd:element ref="constructor-arg" />
+				<xsd:element ref="property" />
+				<xsd:element ref="qualifier" />
+				<xsd:element ref="lookup-method" />
+				<xsd:element ref="replaced-method" />
+			</xsd:choice>
+		</xsd:sequence>
+	</xsd:group>
+
+	<xsd:attributeGroup name="beanAttributes">
+		<xsd:attribute name="name" type="xsd:string">
+		</xsd:attribute>
+		<xsd:attribute name="class" type="xsd:string">
+		</xsd:attribute>
+		<xsd:attribute name="parent" type="xsd:string">
+		</xsd:attribute>
+		<xsd:attribute name="scope" type="xsd:string">
+		</xsd:attribute>
+		<xsd:attribute name="abstract" type="xsd:boolean">
+		</xsd:attribute>
+		<xsd:attribute name="lazy-init" default="default"
+			type="defaultable-boolean">
+		</xsd:attribute>
+		<xsd:attribute name="autowire" default="default">
+			<xsd:simpleType>
+				<xsd:restriction base="xsd:NMTOKEN">
+					<xsd:enumeration value="default" />
+					<xsd:enumeration value="no" />
+					<xsd:enumeration value="byName" />
+					<xsd:enumeration value="byType" />
+					<xsd:enumeration value="constructor" />
+				</xsd:restriction>
+			</xsd:simpleType>
+		</xsd:attribute>
+		<xsd:attribute name="depends-on" type="xsd:string">
+		</xsd:attribute>
+		<xsd:attribute name="autowire-candidate"
+			default="default" type="defaultable-boolean">
+		</xsd:attribute>
+		<xsd:attribute name="primary" type="xsd:boolean">
+		</xsd:attribute>
+		<xsd:attribute name="init-method" type="xsd:string">
+		</xsd:attribute>
+		<xsd:attribute name="destroy-method" type="xsd:string">
+		</xsd:attribute>
+		<xsd:attribute name="factory-method" type="xsd:string">
+		</xsd:attribute>
+		<xsd:attribute name="factory-bean" type="xsd:string">
+		</xsd:attribute>
+	</xsd:attributeGroup>
+
+	<xsd:element name="constructor-arg">
+		<xsd:complexType>
+			<xsd:attribute name="index" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="type" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="name" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="ref" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="value" type="xsd:string">
+			</xsd:attribute>
+		</xsd:complexType>
+	</xsd:element>
+
+	<xsd:element name="property">
+		<xsd:complexType>
+			<xsd:attribute name="name" type="xsd:string"
+				use="required">
+			</xsd:attribute>
+			<xsd:attribute name="ref" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="value" type="xsd:string">
+			</xsd:attribute>
+		</xsd:complexType>
+	</xsd:element>
+
+
+	<xsd:element name="qualifier">
+		<xsd:complexType>
+			<xsd:sequence>
+				<xsd:element ref="attribute" minOccurs="0"
+					maxOccurs="unbounded" />
+			</xsd:sequence>
+			<xsd:attribute name="type" type="xsd:string"
+				default="org.springframework.beans.factory.annotation.Qualifier" />
+			<xsd:attribute name="value" type="xsd:string" />
+		</xsd:complexType>
+	</xsd:element>
+
+	<xsd:element name="attribute">
+		<xsd:complexType>
+			<xsd:attribute name="key" type="xsd:string"
+				use="required">
+			</xsd:attribute>
+			<xsd:attribute name="value" type="xsd:string"
+				use="required">
+			</xsd:attribute>
+		</xsd:complexType>
+	</xsd:element>
+
+
+	<xsd:element name="lookup-method">
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:restriction base="xsd:anyType">
+					<xsd:attribute name="name" type="xsd:string">
+					</xsd:attribute>
+					<xsd:attribute name="bean" type="xsd:string">
+					</xsd:attribute>
+				</xsd:restriction>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+
+	<xsd:element name="replaced-method">
+		<xsd:complexType>
+			<xsd:sequence>
+				<xsd:choice minOccurs="0" maxOccurs="unbounded">
+					<xsd:element ref="arg-type" />
+				</xsd:choice>
+			</xsd:sequence>
+			<xsd:attribute name="name" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="replacer" type="xsd:string">
+			</xsd:attribute>
+		</xsd:complexType>
+	</xsd:element>
+
+
+
+	<xsd:element name="arg-type">
+		<xsd:complexType mixed="true">
+			<xsd:choice minOccurs="0" maxOccurs="unbounded" />
+			<xsd:attribute name="match" type="xsd:string">
+			</xsd:attribute>
+		</xsd:complexType>
+	</xsd:element>
+
+	<xsd:simpleType name="defaultable-boolean">
+		<xsd:restriction base="xsd:NMTOKEN">
+			<xsd:enumeration value="default" />
+			<xsd:enumeration value="true" />
+			<xsd:enumeration value="false" />
+		</xsd:restriction>
+	</xsd:simpleType>
+
+
+
+	<xsd:element name="component-scan">
+		<xsd:complexType>
+			<xsd:sequence>
+				<xsd:element name="include-filter" type="filterType"
+					minOccurs="0" maxOccurs="unbounded">
+				</xsd:element>
+				<xsd:element name="exclude-filter" type="filterType"
+					minOccurs="0" maxOccurs="unbounded">
+				</xsd:element>
+			</xsd:sequence>
+			<xsd:attribute name="base-package" type="xsd:string"
+				use="required">
+			</xsd:attribute>
+			<xsd:attribute name="resource-pattern" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="use-default-filters" type="xsd:boolean"
+				default="true">
+			</xsd:attribute>
+			<xsd:attribute name="annotation-config" type="xsd:boolean"
+				default="true">
+			</xsd:attribute>
+			<xsd:attribute name="name-generator" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="scope-resolver" type="xsd:string">
+			</xsd:attribute>
+			<xsd:attribute name="scoped-proxy">
+				<xsd:simpleType>
+					<xsd:restriction base="xsd:string">
+						<xsd:enumeration value="no"/>
+						<xsd:enumeration value="interfaces"/>
+						<xsd:enumeration value="targetClass"/>
+					</xsd:restriction>
+				</xsd:simpleType>
+			</xsd:attribute>
+		</xsd:complexType>
+	</xsd:element>
+	
+	<xsd:complexType name="filterType">
+		<xsd:attribute name="type" use="required">
+			<xsd:simpleType>
+				<xsd:restriction base="xsd:string">
+					<xsd:enumeration value="annotation"/>
+					<xsd:enumeration value="assignable"/>
+					<xsd:enumeration value="aspectj"/>
+					<xsd:enumeration value="regex"/>
+					<xsd:enumeration value="custom"/>
+				</xsd:restriction>
+			</xsd:simpleType>
+		</xsd:attribute>
+		<xsd:attribute name="expression" type="xsd:string" use="required">
+		</xsd:attribute>
+	</xsd:complexType>
+
+
+
+</xsd:schema>
