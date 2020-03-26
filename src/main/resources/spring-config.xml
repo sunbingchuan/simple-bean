@@ -11,10 +11,10 @@
 	<bean class="java.lang.String">
 		<constructor-arg value="123545"/>
 	</bean>
-	<bean  id ="firstBeanTmp" class="com.bc.test.FirstBean"  lazy-init="default" >
+	<bean  id ="firstBeanTmp" class="com.bc.test.a.FirstBean"  lazy-init="default" >
 	<replaced-method name="toReplace" replacer="replacer">
 	</replaced-method>
 	</bean>
-	<bean id="replacer"  class="com.bc.test.FirstBean.Replacer" />
+	<bean id="replacer"  class="com.bc.test.a.FirstBean.Replacer" />
 	
 </beans>

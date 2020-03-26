@@ -8,6 +8,10 @@ import java.util.regex.Pattern;
 
 import com.bc.simple.bean.common.util.StringUtils;
 
+/**
+ *	
+ *
+ */
 public class ExpressionUtils {
 	private static final List<Object> orders = new ArrayList<Object>(16);
 	private static final char init = ' ';
@@ -49,7 +53,7 @@ public class ExpressionUtils {
 
 		protected int level = -1;
 
-		@SuppressWarnings({ "rawtypes", "unused" })
+		@SuppressWarnings({ "rawtypes"})
 		@Override
 		public int getLevel() {
 			if (level < 0) {
@@ -1000,6 +1004,11 @@ public class ExpressionUtils {
 		}
 	}
 
+	/**
+	 * parse expression which contains math expressions
+	 * @param expression
+	 * @return
+	 */
 	public static Object parseComplexExpression(String expression) {
 		Pattern p = Pattern.compile(EXPRESSION_FINDER);
 		Matcher m = p.matcher(expression);
@@ -1011,6 +1020,11 @@ public class ExpressionUtils {
 		return result.toString();
 	}
 
+	/**
+	 * parse math expression
+	 * @param expression
+	 * @return
+	 */
 	public static Object parseExpression(String expression) {
 		if (StringUtils.isEmpty(expression)) {
 			throw new IllegalArgumentException("invalid parameter " + expression);

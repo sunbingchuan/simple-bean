@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
 import com.bc.simple.bean.common.util.BeanUtils;
-import com.bc.simple.bean.core.support.CurrencyException;
+import com.bc.simple.bean.core.support.SimpleException;
 
 public class Beaker implements Serializable {
 
@@ -68,7 +68,7 @@ public class Beaker implements Serializable {
 			elements.put(index, element);
 			this.count.countDown();
 		} else {
-			throw new CurrencyException("element " + index + " has been seted!");
+			throw new SimpleException("element " + index + " has been seted!");
 		}
 	}
 

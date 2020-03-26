@@ -10,13 +10,13 @@ public class Constant {
 	public static final String ATTR_VALUE = "value";
 	public static final String ATTR_KEY = "key";
 	public static final String ATTR_TYPE = "type";
+	public static final String ATTR_NODE_TYPE = "node-type";
 	public static final String ATTR_RESOURCE = "resource";
 	public static final String ATTR_VALUE_TYPE = "value-type";
 	public static final String ATTR_KEY_TYPE = "key-type";
 	public static final String ATTR_ROOT = "root";
 	public static final String ATTR_REF = "ref";
 	public static final String ATTR_REF_TYPE = "ref-type";
-	public static final String ATTR_PROPERTY_TYPE = "property-type";
 	public static final String ATTR_BEAN = "bean";
 	public static final String ATTR_ID = "id";
 	public static final String ATTR_PARENT = "parent";
@@ -35,6 +35,7 @@ public class Constant {
 	public static final String ATTR_AUTOWIRE = "autowire";
 	public static final String ATTR_AUTOWIRE_CANDIDATE = "autowire-candidate";
 	public static final String ATTR_PRIMARY = "primary";
+	public static final String ATTR_ORDER = "order";
 	public static final String ATTR_DEPENDS_ON = "depends-on";
 	public static final String ATTR_INIT_METHOD = "init-method";
 	public static final String ATTR_DESTROY_METHOD = "destroy-method";
@@ -49,11 +50,20 @@ public class Constant {
 	public static final String ATTR_VALUE_REF = "value-ref";
 	public static final String ATTR_MERGE = "merge";
 	public static final String ATTR_ALIAS = "alias";
-	public static final String ATTR_PROFILE = "profile";
 	public static final String ATTR_ANNOTATION_TYPE = "annotation-type";
 	public static final String ATTR_ALIASES_ANNOTATION_TYPE = "aliases-annotation-type";
 	public static final String ATTR_ALIASES_ATTRIBUTE = "aliases-attribute";
+	public static final String ATTR_INITMETHOD = "initMethod";
+	public static final String ATTR_DESTROYMETHOD = "destroyMethod";
 	public static final String ATTR_SOURCE_ATTRIBUTE = "source-attribute";
+	public static final String ATTR_AUTOWIRECANDIDATE = "autowireCandidate-attribute";
+	public static final String ATTR_POINTCUT="pointcut";
+	public static final String ATTR_HANDLER_CLASS="handler-class";
+	public static final String ATTR_HANDLER_REF="handler-ref";
+	
+	
+	
+	
 	// document type
 	public static final String DOC_ROOT = "root";
 	public static final String DOC_BEAN = "bean";
@@ -84,20 +94,33 @@ public class Constant {
 	public static final String TRUE_VALUE = "true";
 	public static final String FALSE_VALUE = "false";
 	public static final String DEFAULT_VALUE = "default";
+	public static final String ANY_VALUE = "any";
 	public static final String AUTOWIRE_NO_VALUE = "no";
 	public static final String AUTOWIRE_BY_NAME_VALUE = "byName";
 	public static final String AUTOWIRE_BY_TYPE_VALUE = "byType";
 	public static final String AUTOWIRE_CONSTRUCTOR_VALUE = "constructor";
 	public static final String AUTOWIRE_AUTODETECT_VALUE = "autodetect";
+	public static final String TYPE_BEAN_VALUE = "bean";
 	public static final String TYPE_REF_VALUE = "ref";
-	public static final String TYPE_STRING_VALUE = "value";
+	public static final String TYPE_STRING_VALUE = "string";
+	public static final String TYPE_MAP_VALUE = "map";
+	public static final String TYPE_LIST_VALUE = "list";
+	public static final String TYPE_SET_VALUE = "set";
+	public static final String TYPE_ARRAY_VALUE = "array";
+	public static final String TYPE_CLASS_VALUE = "class";
+	public static final String TYPE_PROPS_VALUE = "props";
+	public static final String TYPE_META_VALUE = "META";
 	public static final String SINGLETON_VALUE = "singleton";
-	public static final String OVERRIDE_TYPE_INIT_VALUE = "init";
+	public static final String OVERRIDE_TYPE_LOOKUP_VALUE = "lookup";
 	public static final String OVERRIDE_TYPE_REPLACE_VALUE = "replace";
 	public static final String METHOD_DESTROY_VALUE = "destroy";
 	public static final String METHOD_INIT_VALUE = "init";
 
 	// constant String
 	public static final String MULTI_VALUE_ATTRIBUTE_DELIMITERS = ",; ";
+	public static final String PATTERN_ANY = "*";
+
+	
+	//symbol class
 
 }

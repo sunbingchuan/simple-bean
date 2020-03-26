@@ -5,14 +5,17 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.annotation.Resource;
+
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.common.stereotype.Autowired;
-import com.bc.simple.bean.common.stereotype.Value;
+import com.bc.simple.bean.common.annotation.Autowired;
+import com.bc.simple.bean.common.annotation.Value;
 import com.bc.simple.bean.common.util.AnnotationUtils;
 import com.bc.simple.bean.core.support.InjectedElement;
 
@@ -23,6 +26,7 @@ public class AutowiredAnnotationProcessor implements Processor {
 	public AutowiredAnnotationProcessor() {
 		this.autowiredAnnotationTypes.add(Autowired.class);
 		this.autowiredAnnotationTypes.add(Value.class);
+		this.autowiredAnnotationTypes.add(Resource.class);
 	}
 
 	@Override
@@ -31,10 +35,10 @@ public class AutowiredAnnotationProcessor implements Processor {
 		if (beanDefinition.hasBeanClass()) {
 			clazz = beanDefinition.getBeanClass();
 		} else {
-			clazz = beanDefinition.resolveBeanClass(null);
+			clazz = beanDefinition.resolveBeanClass();
 		}
 		for (Field field : clazz.getDeclaredFields()) {
-			Map<String, Object> annotationAttributes = findAutowiredAnnotation(field);
+			Map<Class<?>, Object> annotationAttributes = findAutowiredAnnotation(field);
 			if (annotationAttributes != null && annotationAttributes.size() > 0) {
 				InjectedElement element = new InjectedElement();
 				element.setAnnotationAttributes(annotationAttributes);
@@ -43,7 +47,7 @@ public class AutowiredAnnotationProcessor implements Processor {
 			}
 		}
 		for (Method method : clazz.getDeclaredMethods()) {
-			Map<String, Object> annotationAttributes = findAutowiredAnnotation(method);
+			Map<Class<?>, Object> annotationAttributes = findAutowiredAnnotation(method);
 			if (annotationAttributes != null && annotationAttributes.size() > 0) {
 				InjectedElement element = new InjectedElement();
 				element.setAnnotationAttributes(annotationAttributes);
@@ -54,14 +58,25 @@ public class AutowiredAnnotationProcessor implements Processor {
 
 	}
 
-	private Map<String, Object> findAutowiredAnnotation(AccessibleObject ao) {
+	private Map<Class<?>, Object> findAutowiredAnnotation(AccessibleObject ao) {
 		List<Annotation> declaredAnnotations = Arrays.asList(AnnotationUtils.getDeclaredAnnotations(ao));
+		boolean isAutowired=false;
 		for (Annotation annotation : declaredAnnotations) {
 			Class<? extends Annotation> currentAnnotationType = annotation.annotationType();
 			if (autowiredAnnotationTypes.contains(currentAnnotationType)) {
-				return AnnotationUtils.retrieveAnnotationAttributes(ao, annotation, false, false);
+				isAutowired=true;
+				break;
 			}
 		}
+		if (isAutowired) {
+			Map<Class<?>, Object> map = new HashMap<Class<?>, Object>();
+			for (Annotation annotation : declaredAnnotations) {
+				Class<? extends Annotation> annotationType = annotation.annotationType();
+				map.put(annotationType, AnnotationUtils.retrieveAnnotationAttributes(ao, annotation, false, false));
+			}
+			return map;
+		}
+		
 		return null;
 	}
 

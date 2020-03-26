@@ -1,6 +1,7 @@
 package com.bc.simple.bean;
 
 import java.lang.reflect.Executable;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashSet;
@@ -8,44 +9,47 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.bc.simple.bean.common.Resource;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
+import com.bc.simple.bean.common.support.proxy.CommonInvocationHandler;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.StringUtils;
 import com.bc.simple.bean.core.support.AnnotationMetaData;
 import com.bc.simple.bean.core.support.BeanMonitor;
 import com.bc.simple.bean.core.support.InjectedElement;
 import com.bc.simple.bean.core.support.LifecycleElement;
+import com.bc.simple.bean.core.support.SimpleException;
 import com.bc.simple.bean.core.support.AnnotationMetaData.MethodMetaData;
 
 public class BeanDefinition {
 
-
+	private Integer beanOrder ;
+	
 	public static final String INFER_METHOD = "(inferred)";
 
 	public boolean allowCaching = true;
 
 	/** Package-visible field for caching fully resolved constructor arguments. */
 
-	public Object[] resolvedConstructorArguments;
+	public Object[] resolvedBuildArguments;
 
 	/** Package-visible field for caching partly prepared constructor arguments. */
 
-	public Object[] preparedConstructorArguments;
+	public Object[] preparedBuildArguments;
 
 	private final Set<String> externallyManagedInitMethods = Collections.synchronizedSet(new HashSet<String>(0));
 
 	private final Set<String> externallyManagedDestroyMethods = Collections.synchronizedSet(new HashSet<String>(0));
 
 	/** Common lock for the four constructor fields below. */
-	public final Object constructorArgumentLock = new Object();
+	public final Object buildArgumentLock = new Object();
 
-
-	public Executable resolvedConstructorOrFactoryMethod;
+	public Executable buildMethod;
 
 	/** Package-visible field that marks the constructor arguments as resolved. */
-	public boolean constructorArgumentsResolved = false;
+	public boolean buildArgumentsResolved = false;
 
 	public final LinkedHashSet<InjectedElement> injectedElements = new LinkedHashSet<>();
 
@@ -53,7 +57,6 @@ public class BeanDefinition {
 
 	/** Common lock for the two post-processing fields below. */
 	public final Object postProcessingLock = new Object();
-
 
 	public boolean postProcessed = false;
 
@@ -63,38 +66,19 @@ public class BeanDefinition {
 
 	public final Set<BeanMonitor> monitoredBeans = Collections.synchronizedSet(new HashSet<>(5));
 
-
 	public static final int AUTOWIRE_NO = 0;
-
 
 	public static final int AUTOWIRE_BY_NAME = 1;
 
-
 	public static final int AUTOWIRE_BY_TYPE = 2;
-
-	public static final int AUTOWIRE_CONSTRUCTOR = 4;
-
-	public static final int AUTOWIRE_AUTODETECT = 8;
-
 
 	public static final String SCOPE_DEFAULT = "";
 
-
 	public static final String SCOPE_SINGLETON = "singleton";
-
 
 	public static final String SCOPE_PROTOTYPE = "prototype";
 
-
-	public static int ROLE_APPLICATION = 0;
-
-
-	public static int ROLE_SUPPORT = 1;
-
-
-	public static int ROLE_INFRASTRUCTURE = 2;
-
-	private volatile Object beanClass;
+	private volatile Class<?> beanClass;
 
 	private volatile String beanClassName;
 
@@ -111,8 +95,6 @@ public class BeanDefinition {
 	private String[] dependsOn;
 
 	private boolean autowireCandidate = true;
-
-	private int autowireMode = AUTOWIRE_NO;
 
 	private boolean primary = false;
 
@@ -136,8 +118,6 @@ public class BeanDefinition {
 
 	private boolean autowireFactoryMethod = false;
 
-	private int role = BeanDefinition.ROLE_APPLICATION;
-
 	private String description;
 
 	private boolean annotated = false;
@@ -145,18 +125,23 @@ public class BeanDefinition {
 	/** Map with String keys and Object values */
 	private final Map<String, Object> attributes = new LinkedHashMap<String, Object>(0);
 
-	private Set<Map<String, Object>> methodOverrides = new HashSet<Map<String, Object>>(0);
+	private Set<Map<String, Object>> overrideMethodDefinitions = new HashSet<Map<String, Object>>(0);
+	
+	private volatile boolean overrideMethodParsed=false;
+	
+	private Map<Method, InvocationHandler> overrideMethods=new ConcurrentHashMap<Method, InvocationHandler>();
+	
+	private Class<? extends InvocationHandler> handleClass;
 
 	private Set<Map<String, Object>> propertyValues;
 
 	private Node root;
 
-	private final Map<Integer, Object> constructorArgumentValues = new LinkedHashMap<>();
+	private final Map<Integer, Object> buildArgumentValues = new LinkedHashMap<>();
 
 	private AnnotationMetaData metadata;
 
 	private Resource resource;
-
 
 	public BeanDefinition() {
 	}
@@ -188,7 +173,6 @@ public class BeanDefinition {
 		setFactoryBeanClassName(getFactoryBeanClassName());
 		setFactoryMethodName(parent.getFactoryMethodName());
 		setScope(parent.getScope());
-		setAutowireMode(parent.getAutowireMode());
 		setConfigClassBeanDefintion(parent.isConfigClassBeanDefintion());
 		getConstructorArgumentValues().putAll(parent.getConstructorArgumentValues());
 		setEnforceDestroyMethod(parent.isEnforceDestroyMethod());
@@ -196,21 +180,18 @@ public class BeanDefinition {
 		setEnforceInitMethod(parent.isEnforceInitMethod());
 		setLazyInit(parent.isLazyInit());
 		setMethodMetaData(parent.getMethodMetaData());
-		setMethodOverrides(parent.getMethodOverrides());
+		setOverrideMethodDefinitions(parent.getOverrideMethodDefinitions());
 		setPropertyValues(parent.getPropertyValues());
 		setResource(parent.getResource());
 		setRoot(parent.getRoot());
-		this.resolvedConstructorOrFactoryMethod = parent.resolvedConstructorOrFactoryMethod;
-		this.constructorArgumentsResolved = parent.constructorArgumentsResolved;
-		this.preparedConstructorArguments = parent.preparedConstructorArguments;
+		this.buildMethod = parent.buildMethod;
+		this.buildArgumentsResolved = parent.buildArgumentsResolved;
+		this.preparedBuildArguments = parent.preparedBuildArguments;
 	}
-
 
 	public void setBeanClassName(String beanClassName) {
 		this.beanClassName = beanClassName;
 	}
-
-
 
 	public String getBeanClassName() {
 		if (StringUtils.isEmpty(beanClassName)) {
@@ -224,69 +205,53 @@ public class BeanDefinition {
 		return beanClassName;
 	}
 
-
 	public void setScope(String scope) {
 		this.scope = scope;
 	}
-
-
 
 	public String getScope() {
 		return scope;
 	}
 
-
 	public void setLazyInit(boolean lazyInit) {
 		this.lazyInit = lazyInit;
 	}
-
 
 	boolean isLazyInit() {
 		return lazyInit;
 	}
 
-
 	public void setDependsOn(String... dependsOn) {
 		this.dependsOn = dependsOn;
 	}
-
-
 
 	public String[] getDependsOn() {
 		return dependsOn;
 	}
 
-
 	public void setAutowireCandidate(boolean autowireCandidate) {
 		this.autowireCandidate = autowireCandidate;
 	}
-
 
 	public boolean isAutowireCandidate() {
 		return this.autowireCandidate;
 	}
 
-
 	public void setPrimary(boolean primary) {
 		this.primary = primary;
 	}
-
 
 	public boolean isPrimary() {
 		return this.primary;
 	}
 
-
 	public void setFactoryBeanName(String factoryBeanName) {
 		this.factoryBeanName = factoryBeanName;
 	}
 
-
-
 	public String getFactoryBeanName() {
 		return this.factoryBeanName;
 	}
-
 
 	public void setFactoryMethodName(String factoryMethodName) {
 		this.factoryMethodName = factoryMethodName;
@@ -294,49 +259,30 @@ public class BeanDefinition {
 
 	// Read-only attributes
 
-
 	public boolean isSingleton() {
 		return SCOPE_SINGLETON.equals(this.scope) || SCOPE_DEFAULT.equals(this.scope);
 
 	}
 
-
 	public boolean isPrototype() {
 		return SCOPE_PROTOTYPE.equals(this.scope) || SCOPE_DEFAULT.equals(this.scope);
 	}
-
 
 	boolean isAbstract() {
 		return this.abstractFlag;
 	}
 
-
-	public int getRole() {
-		return role;
-	}
-
-
-
 	String getDescription() {
 		return description;
 	}
-
-
 
 	public String getResourceDescription() {
 		return (this.resource != null ? this.resource.getDescription() : null);
 
 	}
 
-
-
 	BeanDefinition getOriginatingBeanDefinition() {
 		return null;
-	}
-
-
-	public void setBeanClass(Class<?> beanClass) {
-		this.beanClass = beanClass;
 	}
 
 
@@ -352,19 +298,8 @@ public class BeanDefinition {
 		return (Class<?>) beanClassObject;
 	}
 
-
 	public void setAbstract(boolean abstractFlag) {
 		this.abstractFlag = abstractFlag;
-	}
-
-
-	public void setAutowireMode(int autowireMode) {
-		this.autowireMode = autowireMode;
-	}
-
-
-	public int getAutowireMode() {
-		return this.autowireMode;
 	}
 
 	public boolean isAnnotated() {
@@ -374,7 +309,6 @@ public class BeanDefinition {
 	public void setAnnotated(boolean annotated) {
 		this.annotated = annotated;
 	}
-
 
 	public AnnotationMetaData getMetadata() {
 		return metadata;
@@ -393,7 +327,7 @@ public class BeanDefinition {
 		this.beanName = beanName;
 	}
 
-	public void setBeanClass(Object beanClass) {
+	public void setBeanClass(Class<?> beanClass) {
 		this.beanClass = beanClass;
 	}
 
@@ -405,51 +339,41 @@ public class BeanDefinition {
 		this.aliases = aliases;
 	}
 
-
 	public void setDescription(String description) {
 		this.description = description;
 	}
-
 
 	public void setInitMethodName(String initMethodName) {
 		this.initMethodName = initMethodName;
 	}
 
-
 	public String getInitMethodName() {
 		return this.initMethodName;
 	}
-
 
 	public void setEnforceInitMethod(boolean enforceInitMethod) {
 		this.enforceInitMethod = enforceInitMethod;
 	}
 
-
 	public boolean isEnforceInitMethod() {
 		return this.enforceInitMethod;
 	}
-
 
 	public void setDestroyMethodName(String destroyMethodName) {
 		this.destroyMethodName = destroyMethodName;
 	}
 
-
 	public String getDestroyMethodName() {
 		return this.destroyMethodName;
 	}
-
 
 	public void setEnforceDestroyMethod(boolean enforceDestroyMethod) {
 		this.enforceDestroyMethod = enforceDestroyMethod;
 	}
 
-
 	public boolean isEnforceDestroyMethod() {
 		return this.enforceDestroyMethod;
 	}
-
 
 	public void setAttribute(String name, Object value) {
 		if (value != null) {
@@ -459,31 +383,25 @@ public class BeanDefinition {
 		}
 	}
 
-
 	public Object getAttribute(String name) {
 		return this.attributes.get(name);
 	}
-
 
 	public Object removeAttribute(String name) {
 		return this.attributes.remove(name);
 	}
 
-
-	public void setMethodOverrides(Set<Map<String, Object>> methodOverrides) {
-		this.methodOverrides = methodOverrides;
+	public void setOverrideMethodDefinitions(Set<Map<String, Object>> overrideMethodDefinitions) {
+		this.overrideMethodDefinitions = overrideMethodDefinitions;
 	}
 
-
-	public Set<Map<String, Object>> getMethodOverrides() {
-		return this.methodOverrides;
+	public Set<Map<String, Object>> getOverrideMethodDefinitions() {
+		return this.overrideMethodDefinitions;
 	}
-
 
 	public void setPropertyValues(Set<Map<String, Object>> propertyValues) {
 		this.propertyValues = propertyValues;
 	}
-
 
 	public Set<Map<String, Object>> getPropertyValues() {
 		if (this.propertyValues == null) {
@@ -491,7 +409,6 @@ public class BeanDefinition {
 		}
 		return this.propertyValues;
 	}
-
 
 	public boolean hasPropertyValues() {
 		return (this.propertyValues != null && !this.propertyValues.isEmpty());
@@ -506,7 +423,7 @@ public class BeanDefinition {
 	}
 
 	public Map<Integer, Object> getConstructorArgumentValues() {
-		return constructorArgumentValues;
+		return buildArgumentValues;
 	}
 
 	public Resource getResource() {
@@ -516,7 +433,6 @@ public class BeanDefinition {
 	public void setResource(Resource resource) {
 		this.resource = resource;
 	}
-
 
 	public MethodMetaData getMethodMetaData() {
 		return methodMetaData;
@@ -534,19 +450,26 @@ public class BeanDefinition {
 		this.isConfigClassBeanDefintion = isConfigClassBeanDefintion;
 	}
 
-
 	public boolean hasBeanClass() {
 		return (this.beanClass instanceof Class);
 	}
 
-
-
+	public Class<?> resolveBeanClass() {
+		return resolveBeanClass(null);
+	}
+	
 	public Class<?> resolveBeanClass(ClassLoader classLoader) {
+		if (this.beanClass!=null) {
+			return this.beanClass ;
+		}
 		String className = getBeanClassName();
 		if (className == null) {
 			return null;
 		}
 		Class<?> resolvedClass = BeanUtils.forName(className, classLoader);
+		if (resolvedClass==null) {
+			throw new SimpleException("class "+className + "not found !");
+		}
 		this.beanClass = resolvedClass;
 		return resolvedClass;
 	}
@@ -567,16 +490,13 @@ public class BeanDefinition {
 		return lifecycleElements;
 	}
 
-
 	public String getFactoryMethodName() {
 		return this.factoryMethodName;
 	}
 
-
 	public boolean hasConstructorArgumentValues() {
-		return (this.constructorArgumentValues != null && !this.constructorArgumentValues.isEmpty());
+		return (this.buildArgumentValues != null && !this.buildArgumentValues.isEmpty());
 	}
-
 
 	public boolean isSynthetic() {
 		return this.synthetic;
@@ -598,49 +518,36 @@ public class BeanDefinition {
 		return this.externallyManagedDestroyMethods.contains(destroyMethod);
 	}
 
-
 	public boolean isFactoryMethod(Method candidate) {
 		return candidate.getName().equals(getFactoryMethodName());
-	}
-
-
-	public int getResolvedAutowireMode() {
-		return this.autowireMode;
 	}
 
 	public BeanDefinition cloneBeanDefinition() {
 		return new BeanDefinition(this);
 	}
 
-
 	public void addQualifier(String typeName, String qualifier) {
 		this.qualifiers.put(typeName, qualifier);
 	}
-
 
 	public boolean hasQualifier(String typeName) {
 		return this.qualifiers.keySet().contains(typeName);
 	}
 
-
-
 	public String getQualifier(String typeName) {
 		return this.qualifiers.get(typeName);
 	}
-
 
 	public Set<String> getQualifiers() {
 		return new LinkedHashSet<>(this.qualifiers.values());
 	}
 
-
 	public void copyQualifiersFrom(BeanDefinition source) {
 		this.qualifiers.putAll(source.qualifiers);
 	}
 
-
 	public boolean hasMethodOverrides() {
-		return (this.methodOverrides != null && !this.methodOverrides.isEmpty());
+		return (!this.overrideMethodDefinitions.isEmpty()||!this.overrideMethods.isEmpty());
 	}
 
 	public boolean isAutowireConstructor() {
@@ -675,4 +582,46 @@ public class BeanDefinition {
 		return monitoredBeans;
 	}
 
+	public Integer getBeanOrder() {
+		return beanOrder;
+	}
+
+	public void setBeanOrder(Integer beanOrder) {
+		this.beanOrder = beanOrder;
+	}
+
+	public Map<Method, InvocationHandler> getOverrideMethods() {
+		return overrideMethods;
+	}
+
+	public void setOverrideMethods(Map<Method, InvocationHandler> overrideMethods) {
+		this.overrideMethods = overrideMethods;
+	}
+	
+	public boolean isCommonClassProxy() {
+		return this.handleClass != null 
+				&& CommonInvocationHandler.class.isAssignableFrom(this.handleClass);
+	}
+	
+	public boolean isClassProxy() {
+		return this.handleClass != null ;
+	}
+	
+	public Class<? extends InvocationHandler> getHandleClass() {
+		return handleClass;
+	}
+
+	public void setHandleClass(Class<? extends InvocationHandler> handleClass) {
+		this.handleClass = handleClass;
+	}
+
+	public boolean isOverrideMethodParsed() {
+		return overrideMethodParsed;
+	}
+
+	public void setOverrideMethodParsed(boolean overrideMethodParsed) {
+		this.overrideMethodParsed = overrideMethodParsed;
+	}
+
+	
 }

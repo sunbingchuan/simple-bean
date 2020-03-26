@@ -8,11 +8,14 @@ import java.util.Set;
 
 import com.bc.simple.bean.BeanDefinition;
 import com.bc.simple.bean.BeanFactory;
-import com.bc.simple.bean.common.stereotype.Autowired;
-import com.bc.simple.bean.common.stereotype.Bean;
-import com.bc.simple.bean.common.stereotype.Scope;
+import com.bc.simple.bean.common.annotation.Autowired;
+import com.bc.simple.bean.common.annotation.Bean;
+import com.bc.simple.bean.common.annotation.Order;
+import com.bc.simple.bean.common.annotation.Primary;
+import com.bc.simple.bean.common.annotation.Scope;
 import com.bc.simple.bean.common.util.AnnotationUtils;
 import com.bc.simple.bean.common.util.BeanUtils;
+import com.bc.simple.bean.common.util.Constant;
 import com.bc.simple.bean.common.util.StringUtils;
 import com.bc.simple.bean.core.support.AnnotationMetaData.MethodMetaData;
 
@@ -60,38 +63,49 @@ public class ConfigurationClassProcessor implements Processor {
 			Executable factoryMethod = BeanUtils.findMethod(
 					BeanUtils.forName(methodMetaData.getDeclaringClassName(), null), methodMetaData.getMethodName(),
 					paramTypes);
-			beanDefinition.resolvedConstructorOrFactoryMethod = factoryMethod;
+			beanDefinition.buildMethod = factoryMethod;
 			Map<String, Object> beanAttributes = (Map<String, Object>) methodMetaData
 					.getAnnotationAttributes(Bean.class.getName());
-			String name = (String) beanAttributes.get("name");
+			String name = (String) beanAttributes.get(Constant.ATTR_NAME);
 			if (StringUtils.isEmpty(name)) {
 				name = methodMetaData.getMethodName();
 			}
 			beanDefinition.setBeanName(name);
 			Object tmpVal = null;
-			int autowire = ((tmpVal = beanAttributes.get("autowire")) == null) ? BeanDefinition.AUTOWIRE_NO
-					: (int) tmpVal;
-			beanDefinition.setAutowireMode(autowire);
 			Map<String, Object> autowiredAttributes = (Map<String, Object>) methodMetaData
 					.getAnnotationAttributes(Autowired.class.getName());
 			if (autowiredAttributes != null) {
 				beanDefinition.setAutowireFactoryMethod(true);
 			}
-			boolean autowireCandidate = ((tmpVal = beanAttributes.get("autowireCandidate")) == null) ? true
+			boolean autowireCandidate = ((tmpVal = beanAttributes.get(Constant.ATTR_AUTOWIRECANDIDATE)) == null) ? true
 					: (boolean) tmpVal;
 			beanDefinition.setAutowireCandidate(autowireCandidate);
-			String destroyMethod = (String) beanAttributes.get("name");
+			String destroyMethod = (String) beanAttributes.get(Constant.ATTR_DESTROYMETHOD);
 			beanDefinition.setDestroyMethodName(destroyMethod);
-			String initMethod = (String) beanAttributes.get("initMethod");
+			String initMethod = (String) beanAttributes.get(Constant.ATTR_INITMETHOD);
 			beanDefinition.setInitMethodName(initMethod);
 			beanDefinition.setResource(methodMetaData.getParent().getResource());
 			Map<String, Object> scopeAttributes = (Map<String, Object>) methodMetaData
 					.getAnnotationAttributes(Scope.class.getName());
 			if (scopeAttributes != null) {
-				String scope = (String) scopeAttributes.get("value");
+				String scope = (String) scopeAttributes.get(Constant.ATTR_VALUE);
 				if (StringUtils.isNotEmpty(scope)) {
 					beanDefinition.setScope(scope);
 				}
+			}
+			Map<String, Object> orderAttributes = (Map<String, Object>) methodMetaData
+					.getAnnotationAttributes(Order.class.getName());
+			if (orderAttributes != null) {
+				Integer order = StringUtils.switchInteger(orderAttributes.get(Constant.ATTR_VALUE));
+				if (order ==null) {
+					order=AnnotationUtils.getOrder(beanDefinition.getBeanClass());
+				}
+				if (order !=null) {
+					beanDefinition.setBeanOrder(order);;
+				}
+			}
+			if (methodMetaData.isAnnotated(Primary.class.getName())) {
+					beanDefinition.setPrimary(Boolean.TRUE);
 			}
 			beanFactory.registerBeanDefinition(name, beanDefinition);
 		}

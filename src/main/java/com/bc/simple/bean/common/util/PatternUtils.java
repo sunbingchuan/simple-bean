@@ -1,6 +1,8 @@
 package com.bc.simple.bean.common.util;
 
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -8,18 +10,49 @@ import java.util.regex.Pattern;
 
 public class PatternUtils {
 
+
+	private static Map<String, Integer> modifierFlags = null;
+
 	/** Default path separator: "/". */
 	public static final String DEFAULT_PATH_SEPARATOR = "/";
+
+	public static final String DEFAULT_NAME_SEPARATOR = ".";
+
 
 	public static final int CACHE_TURNOFF_THRESHOLD = 65536;
 
 	public static final Pattern VARIABLE_PATTERN = Pattern.compile("\\{[^/]+?\\}");
 
-	public static final char[] WILDCARD_CHARS = { '*', '?', '{' };
+	public static final char[] WILDCARD_CHARS = {'*', '?', '{'};
 
 	public static final Pattern GLOB_PATTERN = Pattern.compile("\\?|\\*|\\{((?:\\{[^/]+?\\}|[^/{}]|\\\\[{}])+?)\\}");
 
 	public static final String DEFAULT_VARIABLE_PATTERN = "(.*)";
+
+	private static final String ANY_PATTERN = "*";
+
+	static {
+		modifierFlags = new HashMap<String, Integer>();
+		int flag = 1;
+		while (flag <= Modifier.STRICT) {
+			String flagName = Modifier.toString(flag);
+			modifierFlags.put(flagName, new Integer(flag));
+			flag = flag << 1;
+		}
+		modifierFlags.put("synthetic", new Integer(0x1000 /* Modifier.SYNTHETIC */));
+	}
+
+	public static Integer getModifier(String flag) {
+		return modifierFlags.get(flag);
+	}
+
+	public static String nextToken(String str, int index) {
+		int begin = index;
+		while (index < str.length() && Character.isJavaIdentifierPart(str.charAt(index))) {
+			index++;
+		}
+		return str.substring(begin, index);
+	}
 
 	public static int skipSeparator(String path, int pos, String separator) {
 		int skipped = 0;
@@ -63,7 +96,7 @@ public class PatternUtils {
 			pos += skipped;
 			skipped = skipSegment(path, pos, pattDir);
 			if (skipped < pattDir.length()) {
-				return (skipped > 0 || (pattDir.length() > 0 && isWildcardChar(pattDir.charAt(0))));
+				return isWildcardChar(pattDir.charAt(skipped));
 			}
 			pos += skipped;
 		}
@@ -78,16 +111,16 @@ public class PatternUtils {
 		return doMatch(pattern, path, false, null, DEFAULT_PATH_SEPARATOR);
 	}
 
-	/**
-	 * Actually match the given {@code path} against the given {@code pattern}.
-	 * 
-	 * @param pattern   the pattern to match against
-	 * @param path      the path String to test
-	 * @param fullMatch whether a full pattern match is required (else a pattern
-	 *                  match as far as the given base path goes is sufficient)
-	 * @return {@code true} if the supplied {@code path} matched, {@code false} if
-	 *         it didn't
-	 */
+	public static boolean matchQualifiedName(String pattern, String name) {
+		if (ANY_PATTERN.equals(pattern)) {
+			return true;
+		}
+		pattern = pattern.replaceAll(Pattern.quote(".."), ".**.");
+		return doMatch(pattern, name, true, null, DEFAULT_NAME_SEPARATOR);
+	}
+
+
+
 	public static boolean doMatch(String pattern, String path, boolean fullMatch,
 			Map<String, String> uriTemplateVariables, String pathSeparator) {
 
@@ -216,18 +249,14 @@ public class PatternUtils {
 	}
 
 	public static boolean matchStrings(String subPat, String subStr, Map<String, String> uriTemplateVariables) {
-		Pattern pattern = makeGlobalPattern(subPat);
-		return matchStrings(pattern, subStr, uriTemplateVariables);
+		List<String> variableNames = new ArrayList<>();
+		Pattern pattern = makeGlobalPattern(subPat, variableNames);
+		return matchStrings(pattern, subStr, variableNames, uriTemplateVariables);
 	}
 
-	/**
-	 * Main entry point.
-	 * 
-	 * @return {@code true} if the string matches against the pattern, or
-	 *         {@code false} otherwise.
-	 */
-	public static boolean matchStrings(Pattern pattern, String str, Map<String, String> uriTemplateVariables) {
-		List<String> variableNames = new ArrayList<>();
+
+	public static boolean matchStrings(Pattern pattern, String str, List<String> variableNames,
+			Map<String, String> uriTemplateVariables) {
 		Matcher matcher = pattern.matcher(str);
 		if (matcher.matches()) {
 
@@ -251,8 +280,7 @@ public class PatternUtils {
 		}
 	}
 
-	public static Pattern makeGlobalPattern(String pattern) {
-		List<String> variableNames = new ArrayList<>();
+	public static Pattern makeGlobalPattern(String pattern, List<String> variableNames) {
 		StringBuilder patternBuilder = new StringBuilder();
 		Matcher matcher = GLOB_PATTERN.matcher(pattern);
 		int end = 0;
@@ -291,8 +319,11 @@ public class PatternUtils {
 	}
 
 	public static void main(String[] args) {
-		boolean result = PatternUtils.match("1/**/3/4/**/6/7/8/**/10", "1/2/3/4/5/6/7/8/9/10");
+		boolean result = PatternUtils.match("1/2/3/4/5/6/7/8/9/10", "1/2345/6/7/8/9/10");
 		System.out.println(result);
+		System.out.println(matchQualifiedName("a..*b*", "a.dsafsdb"));
+		System.out.println(matchQualifiedName("*..*", "a.b.cadsf.c"));
+		System.out.println(matchQualifiedName("*..*", "a.asdfsdaf"));
 	}
 
 }

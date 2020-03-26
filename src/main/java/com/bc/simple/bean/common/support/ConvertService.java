@@ -17,14 +17,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.StringUtils;
-import com.bc.simple.bean.core.support.CurrencyException;
+import com.bc.simple.bean.core.support.SimpleException;
 
-/**
- * Base {@link ConversionService} implementation suitable for use in most
- * environments. Indirectly implements {@link ConverterRegistry} as registration
- * API through the {@link ConfigurableConversionService} interface.
- *
- */
+
 public class ConvertService {
 
 	public static final GenericConverter NULL_CONVERTER = new NullConverter();
@@ -35,8 +30,7 @@ public class ConvertService {
 
 	// ConverterRegistry implementation
 
-	public ConvertService() {
-	}
+	public ConvertService() {}
 
 	public void addConverter(Converter<?, ?> converter) {
 		Class<?>[] typeInfo = getRequiredTypeInfo(converter.getClass(), Converter.class);
@@ -79,20 +73,7 @@ public class ConvertService {
 		return (converter != null);
 	}
 
-	/**
-	 * Return whether conversion between the source type and the target type can be
-	 * bypassed.
-	 * <p>
-	 * More precisely, this method will return true if objects of sourceType can be
-	 * converted to the target type by returning the source object unchanged.
-	 * 
-	 * @param sourceType context about the source type to convert from (may be
-	 *                   {@code null} if source is {@code null})
-	 * @param targetType context about the target type to convert to (required)
-	 * @return {@code true} if conversion can be bypassed; {@code false} otherwise
-	 * @throws IllegalArgumentException if targetType is {@code null}
-	 * @since 3.2
-	 */
+
 	public boolean canBypassConvert(Class<?> sourceType, Class<?> targetType) {
 		if (sourceType == null) {
 			return true;
@@ -117,21 +98,7 @@ public class ConvertService {
 		return handleConverterNotFound(source, sourceType, targetType);
 	}
 
-	/**
-	 * Convenience operation for converting a source object to the specified
-	 * targetType, where the target type is a descriptor that provides additional
-	 * conversion context. Simply delegates to {@link #convert(Object, Class<?>,
-	 * Class<?>)} and encapsulates the construction of the source type descriptor
-	 * using {@link Class<?>#forObject(Object)}.
-	 * 
-	 * @param source     the source object
-	 * @param targetType the target type
-	 * @return the converted value
-	 * @throws ConversionException      if a conversion exception occurred
-	 * @throws IllegalArgumentException if targetType is {@code null}, or sourceType
-	 *                                  is {@code null} but source is not
-	 *                                  {@code null}
-	 */
+
 
 	public Object convert(Object source, Class<?> targetType) {
 		return convert(source, source == null ? null : source.getClass(), targetType);
@@ -144,18 +111,7 @@ public class ConvertService {
 
 	// Protected template methods
 
-	/**
-	 * Template method to convert a {@code null} source.
-	 * <p>
-	 * The default implementation returns {@code null} or the Java 8
-	 * {@link java.util.Optional#empty()} instance if the target type is
-	 * {@code java.util.Optional}. Subclasses may override this to return custom
-	 * {@code null} objects for specific target types.
-	 * 
-	 * @param sourceType the source type to convert from
-	 * @param targetType the target type to convert to
-	 * @return the converted null object
-	 */
+
 
 	protected Object convertNullSource(Class<?> sourceType, Class<?> targetType) {
 		if (targetType == Optional.class) {
@@ -164,18 +120,7 @@ public class ConvertService {
 		return null;
 	}
 
-	/**
-	 * Hook method to lookup the converter for a given sourceType/targetType pair.
-	 * First queries this ConversionService's converter cache. On a cache miss, then
-	 * performs an exhaustive search for a matching converter. If no converter
-	 * matches, returns the default converter.
-	 * 
-	 * @param sourceType the source type to convert from
-	 * @param targetType the target type to convert to
-	 * @return the generic converter that will perform the conversion, or
-	 *         {@code null} if no suitable converter was found
-	 * @see #getDefaultConverter(Class<?>, Class<?>)
-	 */
+
 
 	protected GenericConverter getConverter(Class<?> sourceType, Class<?> targetType) {
 		ConverterCacheKey key = new ConverterCacheKey(sourceType, targetType);
@@ -201,18 +146,7 @@ public class ConvertService {
 		return null;
 	}
 
-	/**
-	 * Return the default converter if no converter is found for the given
-	 * sourceType/targetType pair.
-	 * <p>
-	 * Returns a NO_OP Converter if the source type is assignable to the target
-	 * type. Returns {@code null} otherwise, indicating no suitable converter could
-	 * be found.
-	 * 
-	 * @param sourceType the source type to convert from
-	 * @param targetType the target type to convert to
-	 * @return the default generic converter that will perform the conversion
-	 */
+
 
 	protected GenericConverter getDefaultConverter(Class<?> sourceType, Class<?> targetType) {
 		return targetType.isAssignableFrom(sourceType) ? new NoOpConverter(targetType.toString()) : null;
@@ -253,7 +187,7 @@ public class ConvertService {
 		if ((sourceType == null || targetType.isAssignableFrom(sourceType)) && targetType.isInstance(source)) {
 			return source;
 		}
-		throw new CurrencyException("can't converter from" + sourceType + " to " + targetType);
+		throw new SimpleException("can't converter from " + sourceType + " to " + targetType);
 	}
 
 	private Object handleResult(Class<?> sourceType, Class<?> targetType, Object result) {
@@ -269,9 +203,7 @@ public class ConvertService {
 		}
 	}
 
-	/**
-	 * Adapts a {@link Converter} to a {@link GenericConverter}.
-	 */
+
 	@SuppressWarnings("unchecked")
 	private final class ConverterAdapter implements GenericConverter {
 
@@ -313,9 +245,7 @@ public class ConvertService {
 		}
 	}
 
-	/**
-	 * Adapts a {@link ConverterFactory} to a {@link GenericConverter}.
-	 */
+
 	@SuppressWarnings("unchecked")
 	private final class ConverterFactoryAdapter implements GenericConverter {
 
@@ -360,9 +290,7 @@ public class ConvertService {
 		}
 	}
 
-	/**
-	 * Key for use with the converter cache.
-	 */
+
 	private static final class ConverterCacheKey implements Comparable<ConverterCacheKey> {
 
 		private final Class<?> sourceType;
@@ -406,9 +334,7 @@ public class ConvertService {
 		}
 	}
 
-	/**
-	 * Manages all converters registered with the service.
-	 */
+
 	private static class Converters {
 
 		private final Set<GenericConverter> globalConverters = new LinkedHashSet<>();
@@ -440,16 +366,7 @@ public class ConvertService {
 			this.converters.remove(new ConvertiblePair(sourceType, targetType));
 		}
 
-		/**
-		 * Find a {@link GenericConverter} given a source and target type.
-		 * <p>
-		 * This method will attempt to match all possible converters by working through
-		 * the class and interface hierarchy of the types.
-		 * 
-		 * @param sourceType the source type
-		 * @param targetType the target type
-		 * @return a matching {@link GenericConverter}, or {@code null} if none found
-		 */
+
 
 		public GenericConverter find(Class<?> sourceType, Class<?> targetType) {
 			// Search the full type hierarchy
@@ -487,13 +404,7 @@ public class ConvertService {
 			return null;
 		}
 
-		/**
-		 * Returns an ordered class hierarchy for the given type.
-		 * 
-		 * @param type the type
-		 * @return an ordered list of all classes that the given type extends or
-		 *         implements
-		 */
+
 		private List<Class<?>> getClassHierarchy(Class<?> type) {
 			List<Class<?>> hierarchy = new ArrayList<>(20);
 			Set<Class<?>> visited = new HashSet<>(20);
@@ -562,9 +473,7 @@ public class ConvertService {
 		}
 	}
 
-	/**
-	 * Manages converters registered with a specific {@link ConvertiblePair}.
-	 */
+
 	private static class ConvertersForPair {
 
 		private final LinkedList<GenericConverter> converters = new LinkedList<>();
@@ -588,9 +497,7 @@ public class ConvertService {
 		}
 	}
 
-	/**
-	 * Internal converter that performs no operation.
-	 */
+
 	private static class NoOpConverter implements GenericConverter {
 
 		private final String name;
@@ -615,13 +522,10 @@ public class ConvertService {
 		}
 	}
 
-	/**
-	 * Internal converter that performs no operation.
-	 */
+
 	private static class NullConverter implements GenericConverter {
 
-		public NullConverter() {
-		}
+		public NullConverter() {}
 
 		@Override
 		public Set<ConvertiblePair> getConvertibleTypes() {
@@ -635,34 +539,11 @@ public class ConvertService {
 
 	}
 
-	/**
-	 * A converter converts a source object of type {@code S} to a target of type
-	 * {@code T}.
-	 *
-	 * <p>
-	 * Implementations of this interface are thread-safe and can be shared.
-	 *
-	 * <p>
-	 * Implementations may additionally implement {@link ConditionalConverter}.
-	 *
-	 * @author Keith Donald
-	 * @since 3.0
-	 * @param <S> the source type
-	 * @param <T> the target type
-	 */
+
 	@FunctionalInterface
 	public interface Converter<S, T> {
 
-		/**
-		 * Convert the source object of type {@code S} to target type {@code T}.
-		 * 
-		 * @param source the source object to convert, which must be an instance of
-		 *               {@code S} (never {@code null})
-		 * @return the converted object, which must be an instance of {@code T}
-		 *         (potentially {@code null})
-		 * @throws IllegalArgumentException if the source cannot be converted to the
-		 *                                  desired target type
-		 */
+
 		T convert(S source);
 
 		default boolean matches(Class<?> sourceType, Class<?> targetType) {
@@ -671,21 +552,14 @@ public class ConvertService {
 
 	}
 
-	/**
-	 * Holder for a source-to-target class pair.
-	 */
+
 	public static final class ConvertiblePair {
 
 		private final Class<?> sourceType;
 
 		private final Class<?> targetType;
 
-		/**
-		 * Create a new source-to-target pair.
-		 * 
-		 * @param sourceType the source type
-		 * @param targetType the target type
-		 */
+
 		public ConvertiblePair(Class<?> sourceType, Class<?> targetType) {
 			this.sourceType = sourceType;
 			this.targetType = targetType;
@@ -722,56 +596,13 @@ public class ConvertService {
 		}
 	}
 
-	/**
-	 * Generic converter interface for converting between two or more types.
-	 *
-	 * <p>
-	 * This is the most flexible of the Converter SPI interfaces, but also the most
-	 * complex. It is flexible in that a GenericConverter may support converting
-	 * between multiple source/target type pairs (see
-	 * {@link #getConvertibleTypes()}. In addition, GenericConverter implementations
-	 * have access to source/target {@link Class<?> field context} during the type
-	 * conversion process. This allows for resolving source and target field
-	 * metadata such as annotations and generics information, which can be used to
-	 * influence the conversion logic.
-	 *
-	 * <p>
-	 * This interface should generally not be used when the simpler
-	 * {@link Converter} or {@link ConverterFactory} interface is sufficient.
-	 *
-	 * <p>
-	 * Implementations may additionally implement {@link ConditionalConverter}.
-	 *
-	 * @author Keith Donald
-	 * @author Juergen Hoeller
-	 * @since 3.0
-	 * @see Class<?>
-	 * @see Converter
-	 * @see ConverterFactory
-	 * @see ConditionalConverter
-	 */
+
 	public interface GenericConverter {
 
-		/**
-		 * Return the source and target types that this converter can convert between.
-		 * <p>
-		 * Each entry is a convertible source-to-target type pair.
-		 * <p>
-		 * For {@link ConditionalConverter conditional converters} this method may
-		 * return {@code null} to indicate all source-to-target pairs should be
-		 * considered.
-		 */
+
 		Set<ConvertiblePair> getConvertibleTypes();
 
-		/**
-		 * Convert the source object to the targetType described by the
-		 * {@code Class<?>}.
-		 * 
-		 * @param source     the source object to convert (may be {@code null})
-		 * @param sourceType the type descriptor of the field we are converting from
-		 * @param targetType the type descriptor of the field we are converting to
-		 * @return the converted object
-		 */
+
 		Object convert(Object source, Class<?> sourceType, Class<?> targetType);
 
 		default boolean matches(Class<?> sourceType, Class<?> targetType) {
@@ -780,32 +611,10 @@ public class ConvertService {
 
 	}
 
-	/**
-	 * A factory for "ranged" converters that can convert objects from S to subtypes
-	 * of R.
-	 *
-	 * <p>
-	 * Implementations may additionally implement {@link ConditionalConverter}.
-	 *
-	 * @author Keith Donald
-	 * @since 3.0
-	 * @param <S> the source type converters created by this factory can convert
-	 *        from
-	 * @param <R> the target range (or base) type converters created by this factory
-	 *        can convert to; for example {@link Number} for a set of number
-	 *        subtypes.
-	 * @see ConditionalConverter
-	 */
+
 	public interface ConverterFactory<S, R> {
 
-		/**
-		 * Get the converter to convert from S to target type T, where T is also an
-		 * instance of R.
-		 * 
-		 * @param            <T> the target type
-		 * @param targetType the target type to convert to
-		 * @return a converter from S to T
-		 */
+
 		<T extends R> Converter<S, T> getConverter(Class<T> targetType);
 
 	}

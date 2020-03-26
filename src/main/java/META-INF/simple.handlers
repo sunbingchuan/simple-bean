@@ -1,0 +1,2 @@
+scan=com.bc.simple.bean.core.handler.ScanHandler
+aop=com.bc.simple.bean.core.handler.AopHandler

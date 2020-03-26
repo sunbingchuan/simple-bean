@@ -1,6 +1,5 @@
 package com.bc.simple.bean.core.handler;
 
-import static com.bc.simple.bean.common.util.ResourceUtils.CLASSPATH_ALL_URL_PREFIX;
 import static com.bc.simple.bean.common.util.ResourceUtils.DEFAULT_RESOURCE_PATTERN;
 import static com.bc.simple.bean.common.util.ResourceUtils.getResources;
 import static com.bc.simple.bean.common.util.ResourceUtils.getUnPatternRootDir;
@@ -8,17 +7,17 @@ import static com.bc.simple.bean.common.util.ResourceUtils.getUnPatternRootDir;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.bc.simple.bean.BeanDefinition;
 import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.Resource;
+import com.bc.simple.bean.common.annotation.Component;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
-import com.bc.simple.bean.common.stereotype.Component;
-import com.bc.simple.bean.common.stereotype.Configuration;
-import com.bc.simple.bean.common.stereotype.Service;
 import com.bc.simple.bean.common.util.AnnotationUtils;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.Constant;
@@ -56,8 +55,7 @@ public class ScanHandler implements Handler {
 
 	private Node root;
 
-	public ScanHandler(BeanFactory beanFactory) {
-		this.beanFactory = beanFactory;
+	public ScanHandler() {
 	}
 
 
@@ -77,13 +75,17 @@ public class ScanHandler implements Handler {
 	protected List<BeanDefinition> doScan(Node element) {
 		String basePackage = element.attrString(BASE_PACKAGE_ATTRIBUTE);
 		basePackage = StringUtils.convertClassNameToResourcePath(basePackage);
-		String packageSearchPath = CLASSPATH_ALL_URL_PREFIX + basePackage + '/' + DEFAULT_RESOURCE_PATTERN;
-		List<Resource> dirs = getResources(getUnPatternRootDir(basePackage));
+		String packageSearchPath = basePackage + '/' + DEFAULT_RESOURCE_PATTERN;
+		String unPatternRoot = getUnPatternRootDir(basePackage);
+		List<Resource> dirs = getResources(unPatternRoot);
 		List<BeanDefinition> beanDefinitions = new ArrayList<>();
 		Set<File> resources = new HashSet<File>();
 		for (Resource dir : dirs) {
 			File rootDir = dir.getFile();
-			ResourceUtils.doRetrieveMatchingFiles(packageSearchPath, rootDir, resources);
+			String rootDirPath = rootDir.getPath();
+			rootDirPath = rootDirPath.replace("\\", "/");
+			String claspath = rootDirPath.substring(0, rootDirPath.lastIndexOf(unPatternRoot));
+			ResourceUtils.analysisClasspathAndRetrieveMatchingFiles(claspath + packageSearchPath, rootDir, resources);
 			for (File file : resources) {
 				try (FileInputStream inputStream = new FileInputStream(file);) {
 					ClassReader classReader = new ClassReader(inputStream);
@@ -93,9 +95,7 @@ public class ScanHandler implements Handler {
 					if (annotationMetaData.isAnnotation()) {
 						continue;
 					}
-					if (annotationMetaData.hasAnnotation(Service.class.getCanonicalName())
-							|| annotationMetaData.hasAnnotation(Configuration.class.getCanonicalName())
-							|| annotationMetaData.hasAnnotation(Component.class.getCanonicalName())) {
+					if (isComponent(annotationMetaData)) {
 						BeanDefinition bdf = new BeanDefinition();
 						bdf.setMetadata(annotationMetaData);
 						bdf.setResource(annotationMetaData.getResource());
@@ -114,6 +114,28 @@ public class ScanHandler implements Handler {
 		return beanDefinitions;
 	}
 
+	private static final Map<String, Boolean> componentTypeCache = new HashMap<String, Boolean>();
+
+	private boolean isComponent(AnnotationMetaData annotationMetaData) {
+		for (String type : annotationMetaData.getAnnotationTypes()) {
+			if (componentTypeCache.containsKey(type) && componentTypeCache.get(type)) {
+				return true;
+			} else {
+				boolean isComponent = false;
+				if (type.equals(Component.class.getCanonicalName())) {
+					isComponent = true;
+				} else {
+					isComponent = AnnotationUtils.findAnnotation(BeanUtils.forName(type), Component.class) != null;
+				}
+				componentTypeCache.put(type, isComponent);
+				if (isComponent) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	public void postProcessBeanDefinition(List<BeanDefinition> beanDefinitions, Node element) {
 		for (BeanDefinition beanDefinition : beanDefinitions) {
 			String candidatePattern = this.root.attrString(Constant.ATTR_DEFAULT_AUTOWIRE_CANDIDATES);
@@ -123,9 +145,7 @@ public class ScanHandler implements Handler {
 			}
 
 		}
-
 		AnnotationUtils.registerAnnotationConfigProcessors(this.root, beanFactory);
-
 	}
 
 
@@ -138,10 +158,9 @@ public class ScanHandler implements Handler {
 		this.root = root;
 	}
 
-
 	@Override
-	public String getDomain() {
-		return "scan";
+	public void setBeanFactory(BeanFactory factory) {
+		this.beanFactory = factory;
 	}
 
 

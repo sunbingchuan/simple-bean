@@ -110,11 +110,11 @@ public class ConfigLoader {
 			StringBuffer sb = new StringBuffer();
 			sb.append(identation).append("Node:").append(this.name).append("\n");
 			for (Entry<String, Object> attribute : attributes.entrySet()) {
-				sb.append(identation).append(" ").append(attribute.getKey()).append(":").append(attribute.getValue())
+				sb.append(identation).append("\t").append(attribute.getKey()).append(":").append(attribute.getValue())
 						.append("\n");
 			}
 			for (Node node : childs) {
-				sb.append(node.toString(" ")).append("\n");
+				sb.append(node.toString("\t" + identation)).append("\n");
 			}
 			return sb.toString();
 		}
@@ -134,6 +134,14 @@ public class ConfigLoader {
 		}
 	}
 
+	/**
+	 * @param config String
+	 *               <p>
+	 *               we use a method of level iteration which is discriminated by en
+	 *               double space char
+	 *               <p>
+	 * @return {@link Node}
+	 */
 	public static Node load(String config) {
 		config = config + "\n";
 		StringBuffer line = new StringBuffer();
@@ -143,8 +151,9 @@ public class ConfigLoader {
 		for (int i = 0; i < config.length(); i++) {
 			if (config.charAt(i) == '\n') {
 				String ln = line.toString().trim();
-				if (StringUtils.isEmpty(ln)) {
+				if (StringUtils.isEmpty(ln) || ln.charAt(0) == '#') {
 					level = 0;
+					line.delete(0, line.length());
 					continue;
 				}
 				if (level > curLevel) {
@@ -163,7 +172,7 @@ public class ConfigLoader {
 				}
 				line.delete(0, line.length());
 				level = 0;
-			} else if (config.charAt(i) == ' ') {
+			} else if (config.charAt(i) == '\t') {
 				level++;
 			}
 			line.append(config.charAt(i));

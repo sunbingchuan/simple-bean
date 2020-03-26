@@ -7,15 +7,12 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Parameter;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.Optional;
 
 import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.util.ObjectUtils;
 import com.sun.istack.internal.Nullable;
 
-@SuppressWarnings("restriction")
 public class DependencyDescriptor {
 
 	@Nullable
@@ -44,20 +41,17 @@ public class DependencyDescriptor {
 
 	private final boolean eager;
 
-	private int nestingLevel = 1;
 
 	@Nullable
 	private Class<?> containingClass;
 
-	@Nullable
-	private transient volatile Object resolvableType;
 
 	/**
-	 * Create a new descriptor for a method or constructor parameter. Considers the
-	 * dependency as 'eager'.
+	 * Create a new descriptor for a method or constructor parameter. Considers the dependency as
+	 * 'eager'.
 	 * 
 	 * @param methodParameter the MethodParameter to wrap
-	 * @param required        whether the dependency is required
+	 * @param required whether the dependency is required
 	 */
 	public DependencyDescriptor(Parameter methodParameter, boolean required) {
 		this(methodParameter, required, true);
@@ -67,10 +61,9 @@ public class DependencyDescriptor {
 	 * Create a new descriptor for a method or constructor parameter.
 	 * 
 	 * @param methodParameter the MethodParameter to wrap
-	 * @param required        whether the dependency is required
-	 * @param eager           whether this dependency is 'eager' in the sense of
-	 *                        eagerly resolving potential target beans for type
-	 *                        matching
+	 * @param required whether the dependency is required
+	 * @param eager whether this dependency is 'eager' in the sense of eagerly resolving potential
+	 *        target beans for type matching
 	 */
 	public DependencyDescriptor(Parameter methodParameter, boolean required, boolean eager) {
 
@@ -88,7 +81,7 @@ public class DependencyDescriptor {
 	/**
 	 * Create a new descriptor for a field. Considers the dependency as 'eager'.
 	 * 
-	 * @param field    the field to wrap
+	 * @param field the field to wrap
 	 * @param required whether the dependency is required
 	 */
 	public DependencyDescriptor(Field field, boolean required) {
@@ -98,10 +91,10 @@ public class DependencyDescriptor {
 	/**
 	 * Create a new descriptor for a field.
 	 * 
-	 * @param field    the field to wrap
+	 * @param field the field to wrap
 	 * @param required whether the dependency is required
-	 * @param eager    whether this dependency is 'eager' in the sense of eagerly
-	 *                 resolving potential target beans for type matching
+	 * @param eager whether this dependency is 'eager' in the sense of eagerly resolving potential
+	 *        target beans for type matching
 	 */
 	public DependencyDescriptor(Field field, boolean required, boolean eager) {
 		this.field = field;
@@ -117,7 +110,7 @@ public class DependencyDescriptor {
 	 * @param original the original descriptor to create a copy from
 	 */
 	public DependencyDescriptor(DependencyDescriptor original) {
-		this.methodParameter = original.getMethodParameter();
+		this.methodParameter = original.methodParameter;
 		this.field = original.field;
 		this.fieldAnnotations = original.fieldAnnotations;
 		this.declaringClass = original.declaringClass;
@@ -128,16 +121,14 @@ public class DependencyDescriptor {
 		this.containingClass = original.containingClass;
 		this.required = original.required;
 		this.eager = original.eager;
-		this.nestingLevel = original.nestingLevel;
 	}
 
 	/**
 	 * Return whether this dependency is required.
 	 * <p>
-	 * Optional semantics are derived from Java 8's {@link java.util.Optional}, any
-	 * variant of a parameter-level {@code Nullable} annotation (such as from
-	 * JSR-305 or the FindBugs set of annotations), or a language-level nullable
-	 * type declaration in Kotlin.
+	 * Optional semantics are derived from Java 8's {@link java.util.Optional}, any variant of a
+	 * parameter-level {@code Nullable} annotation (such as from JSR-305 or the FindBugs set of
+	 * annotations), or a language-level nullable type declaration in Kotlin.
 	 */
 	public boolean isRequired() {
 		if (!this.required) {
@@ -147,13 +138,13 @@ public class DependencyDescriptor {
 		if (this.field != null) {
 			return !(this.field.getType() == Optional.class || hasNullableAnnotation());
 		} else {
-			return !(obtainMethodParameter().getType() == Optional.class);
+			return !(getMethodParameter().getType() == Optional.class);
 		}
 	}
 
 	/**
-	 * Check whether the underlying field is annotated with any variant of a
-	 * {@code Nullable} annotation, e.g. {@code javax.annotation.Nullable} or
+	 * Check whether the underlying field is annotated with any variant of a {@code Nullable}
+	 * annotation, e.g. {@code javax.annotation.Nullable} or
 	 * {@code edu.umd.cs.findbugs.annotations.Nullable}.
 	 */
 	private boolean hasNullableAnnotation() {
@@ -166,46 +157,26 @@ public class DependencyDescriptor {
 	}
 
 	/**
-	 * Return whether this dependency is 'eager' in the sense of eagerly resolving
-	 * potential target beans for type matching.
+	 * Return whether this dependency is 'eager' in the sense of eagerly resolving potential target
+	 * beans for type matching.
 	 */
 	public boolean isEager() {
 		return this.eager;
 	}
 
-	/**
-	 * Return whether this descriptor allows for stream-style access to result
-	 * instances.
-	 * <p>
-	 * By default, dependencies are strictly resolved to the declaration of the
-	 * injection point and therefore only resolve multiple entries if the injection
-	 * point is declared as an array, collection or map. This is indicated by
-	 * returning {@code false} here.
-	 * <p>
-	 * Overriding this method to return {@code true} indicates that the injection
-	 * point declares the bean type but the resolution is meant to end up in a
-	 * {@link java.util.stream.Stream} for the declared bean type, with the caller
-	 * handling the multi-instance case for the injection point.
-	 * 
-	 * @since 5.1
-	 */
-	public boolean isStreamAccess() {
-		return false;
-	}
 
 	/**
-	 * Resolve a shortcut for this dependency against the given factory, for example
-	 * taking some pre-resolved information into account.
+	 * Resolve a shortcut for this dependency against the given factory, for example taking some
+	 * pre-resolved information into account.
 	 * <p>
-	 * The resolution algorithm will first attempt to resolve a shortcut through
-	 * this method before going into the regular type matching algorithm across all
-	 * beans. Subclasses may override this method to improve resolution performance
-	 * based on pre-cached information while still receiving {@link InjectionPoint}
-	 * exposure etc.
+	 * The resolution algorithm will first attempt to resolve a shortcut through this method before
+	 * going into the regular type matching algorithm across all beans. Subclasses may override this
+	 * method to improve resolution performance based on pre-cached information while still
+	 * receiving {@link InjectionPoint} exposure etc.
 	 * 
 	 * @param beanFactory the associated factory
-	 * @return the shortcut result if any, or {@code null} if none @ if the shortcut
-	 *         could not be obtained @since 4.3.1
+	 * @return the shortcut result if any, or {@code null} if none @ if the shortcut could not be
+	 *         obtained @since 4.3.1
 	 */
 	@Nullable
 	public Object resolveShortcut(BeanFactory beanFactory) {
@@ -213,17 +184,17 @@ public class DependencyDescriptor {
 	}
 
 	/**
-	 * Resolve the specified bean name, as a candidate result of the matching
-	 * algorithm for this dependency, to a bean instance from the given factory.
+	 * Resolve the specified bean name, as a candidate result of the matching algorithm for this
+	 * dependency, to a bean instance from the given factory.
 	 * <p>
-	 * The default implementation calls {@link BeanFactory#getBean(String)}.
-	 * Subclasses may provide additional arguments or other customizations.
+	 * The default implementation calls {@link BeanFactory#getBean(String)}. Subclasses may provide
+	 * additional arguments or other customizations.
 	 * 
-	 * @param beanName     the bean name, as a candidate result for this dependency
+	 * @param beanName the bean name, as a candidate result for this dependency
 	 * @param requiredType the expected type of the bean (as an assertion)
-	 * @param beanFactory  the associated factory
-	 * @return the bean instance (never {@code null}) @ if the bean could not be
-	 *         obtained @since 4.3.2
+	 * @param beanFactory the associated factory
+	 * @return the bean instance (never {@code null}) @ if the bean could not be obtained @since
+	 *         4.3.2
 	 * @see BeanFactory#getBean(String)
 	 */
 	public Object resolveCandidate(String beanName, Class<?> requiredType, BeanFactory beanFactory) {
@@ -231,46 +202,25 @@ public class DependencyDescriptor {
 		return beanFactory.getBean(beanName);
 	}
 
-	/**
-	 * Increase this descriptor's nesting level.
-	 * 
-	 * @see MethodParameter#increaseNestingLevel()
-	 */
-	public void increaseNestingLevel() {
-		this.nestingLevel++;
-		this.resolvableType = null;
-	}
 
 	/**
-	 * Optionally set the concrete class that contains this dependency. This may
-	 * differ from the class that declares the parameter/field in that it may be a
-	 * subclass thereof, potentially substituting type variables.
+	 * Optionally set the concrete class that contains this dependency. This may differ from the
+	 * class that declares the parameter/field in that it may be a subclass thereof, potentially
+	 * substituting type variables.
 	 * 
 	 * @since 4.0
 	 */
 	public void setContainingClass(Class<?> containingClass) {
 		this.containingClass = containingClass;
-		this.resolvableType = null;
 	}
 
-	/**
-	 * Build a ResolvableType object for the wrapped parameter/field.
-	 * 
-	 * @since 4.0
-	 */
-	public Object getResolvableType() {
-		Object resolvableType = this.resolvableType;
-		// something
-		return resolvableType;
-	}
 
 	/**
 	 * Return whether a fallback match is allowed.
 	 * <p>
-	 * This is {@code false} by default but may be overridden to return {@code true}
-	 * in order to suggest to an
-	 * {@link org.Factory.beans.factory.support.AutowireCandidateResolver}
-	 * that a fallback match is acceptable as well.
+	 * This is {@code false} by default but may be overridden to return {@code true} in order to
+	 * suggest to an {@link org.Factory.beans.factory.support.AutowireCandidateResolver} that a
+	 * fallback match is acceptable as well.
 	 * 
 	 * @since 4.0
 	 */
@@ -300,7 +250,7 @@ public class DependencyDescriptor {
 	 */
 	@Nullable
 	public String getDependencyName() {
-		return (this.field != null ? this.field.getName() : obtainMethodParameter().getName());
+		return (this.field != null ? this.field.getName() : getMethodParameter().getName());
 	}
 
 	/**
@@ -310,28 +260,9 @@ public class DependencyDescriptor {
 	 */
 	public Class<?> getDependencyType() {
 		if (this.field != null) {
-			if (this.nestingLevel > 1) {
-				Type type = this.field.getGenericType();
-				for (int i = 2; i <= this.nestingLevel; i++) {
-					if (type instanceof ParameterizedType) {
-						Type[] args = ((ParameterizedType) type).getActualTypeArguments();
-						type = args[args.length - 1];
-					}
-				}
-				if (type instanceof Class) {
-					return (Class<?>) type;
-				} else if (type instanceof ParameterizedType) {
-					Type arg = ((ParameterizedType) type).getRawType();
-					if (arg instanceof Class) {
-						return (Class<?>) arg;
-					}
-				}
-				return Object.class;
-			} else {
-				return this.field.getType();
-			}
+			return this.field.getType();
 		} else {
-			return obtainMethodParameter().getType();
+			return getMethodParameter().getType();
 		}
 	}
 
@@ -347,7 +278,7 @@ public class DependencyDescriptor {
 		return (ObjectUtils.nullSafeEquals(this.field, otherPoint.field)
 				&& ObjectUtils.nullSafeEquals(this.methodParameter, otherPoint.methodParameter)
 				&& this.required == otherPoint.required && this.eager == otherPoint.eager
-				&& this.nestingLevel == otherPoint.nestingLevel && this.containingClass == otherPoint.containingClass);
+				&& this.containingClass == otherPoint.containingClass);
 	}
 
 	@Override
@@ -407,19 +338,7 @@ public class DependencyDescriptor {
 	}
 
 	/**
-	 * Return the wrapped MethodParameter, assuming it is present.
-	 * 
-	 * @return the MethodParameter (never {@code null})
-	 * @throws IllegalStateException if no MethodParameter is available
-	 * @since 5.0
-	 */
-	protected final Parameter obtainMethodParameter() {
-		return this.methodParameter;
-	}
-
-	/**
-	 * Obtain the annotations associated with the wrapped field or
-	 * method/constructor parameter.
+	 * Obtain the annotations associated with the wrapped field or method/constructor parameter.
 	 */
 	public Annotation[] getAnnotations() {
 		if (this.field != null) {
@@ -430,7 +349,7 @@ public class DependencyDescriptor {
 			}
 			return fieldAnnotations;
 		} else {
-			return obtainMethodParameter().getAnnotations();
+			return getMethodParameter().getAnnotations();
 		}
 	}
 
@@ -444,15 +363,15 @@ public class DependencyDescriptor {
 	@Nullable
 	public <A extends Annotation> A getAnnotation(Class<A> annotationType) {
 		return (this.field != null ? this.field.getAnnotation(annotationType)
-				: obtainMethodParameter().getAnnotation(annotationType));
+				: getMethodParameter().getAnnotation(annotationType));
 	}
 
 	/**
-	 * Return the type declared by the underlying field or method/constructor
-	 * parameter, indicating the injection type.
+	 * Return the type declared by the underlying field or method/constructor parameter, indicating
+	 * the injection type.
 	 */
 	public Class<?> getDeclaredType() {
-		return (this.field != null ? this.field.getType() : obtainMethodParameter().getType());
+		return (this.field != null ? this.field.getType() : getMethodParameter().getType());
 	}
 
 	/**
@@ -461,22 +380,21 @@ public class DependencyDescriptor {
 	 * @return the Field / Method / Constructor as Member
 	 */
 	public Member getMember() {
-		return (this.field != null ? this.field : obtainMethodParameter().getDeclaringExecutable());
+		return (this.field != null ? this.field : getMethodParameter().getDeclaringExecutable());
 	}
 
 	/**
 	 * Return the wrapped annotated element.
 	 * <p>
-	 * Note: In case of a method/constructor parameter, this exposes the annotations
-	 * declared on the method or constructor itself (i.e. at the method/constructor
-	 * level, not at the parameter level). Use {@link #getAnnotations()} to obtain
-	 * parameter-level annotations in such a scenario, transparently with
-	 * corresponding field annotations.
+	 * Note: In case of a method/constructor parameter, this exposes the annotations declared on the
+	 * method or constructor itself (i.e. at the method/constructor level, not at the parameter
+	 * level). Use {@link #getAnnotations()} to obtain parameter-level annotations in such a
+	 * scenario, transparently with corresponding field annotations.
 	 * 
 	 * @return the Field / Method / Constructor as AnnotatedElement
 	 */
 	public AnnotatedElement getAnnotatedElement() {
-		return (this.field != null ? this.field : obtainMethodParameter().getDeclaringExecutable());
+		return (this.field != null ? this.field : getMethodParameter());
 	}
 
 	@Override

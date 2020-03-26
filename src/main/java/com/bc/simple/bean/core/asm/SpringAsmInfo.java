@@ -1,29 +1,26 @@
 /*
  * Copyright 2002-2018 the original author or authors.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  */
 
 package com.bc.simple.bean.core.asm;
 
-import com.bc.simple.bean.core.asm.Opcodes;
-
 /**
- * Utility class exposing constants related to Spring's internal repackaging
- * of the ASM bytecode library: currently based on ASM 6.2 plus minor patches.
+ * Utility class exposing constants related to Spring's internal repackaging of the ASM bytecode
+ * library: currently based on ASM 6.2 plus minor patches.
  *
- * <p>See <a href="package-summary.html">package-level javadocs</a> for more
- * information on {@code com.bc.spring.reduce.core.asm}.
+ * <p>
+ * See <a href="package-summary.html">package-level javadocs</a> for more information on
+ * {@code com.bc.simple.bean.core.asm}.
  *
  * @author Chris Beams
  * @author Juergen Hoeller
@@ -32,8 +29,8 @@ import com.bc.simple.bean.core.asm.Opcodes;
 public final class SpringAsmInfo {
 
 	/**
-	 * The ASM compatibility version for Spring's ASM visitor implementations:
-	 * currently {@link Opcodes#ASM7_EXPERIMENTAL}.
+	 * The ASM compatibility version for Spring's ASM visitor implementations: currently
+	 * {@link Opcodes#ASM7_EXPERIMENTAL}.
 	 */
 	public static final int ASM_VERSION = Opcodes.ASM7_EXPERIMENTAL;
 

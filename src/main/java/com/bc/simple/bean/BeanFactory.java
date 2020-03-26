@@ -1,11 +1,13 @@
 package com.bc.simple.bean;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
@@ -14,7 +16,7 @@ import org.apache.commons.logging.LogFactory;
 import com.bc.simple.bean.common.util.StringUtils;
 import com.bc.simple.bean.core.AbstractBeanFactory;
 import com.bc.simple.bean.core.processor.Processor;
-import com.bc.simple.bean.core.support.CurrencyException;
+import com.bc.simple.bean.core.support.SimpleException;
 
 public class BeanFactory extends AbstractBeanFactory {
 
@@ -27,9 +29,7 @@ public class BeanFactory extends AbstractBeanFactory {
 	/** List of bean definition names, in registration order. */
 	private volatile List<String> beanDefinitionNames = new ArrayList<>(256);
 
-
 	private boolean allowBeanDefinitionOverriding = true;
-
 
 	private final Set<Class<?>> ignoredDependencyInterfaces = new HashSet<>();
 
@@ -37,72 +37,66 @@ public class BeanFactory extends AbstractBeanFactory {
 
 	private ApplicationContext context;
 
-
 	@Override
 	public Object getBean(String name) {
 		return doGetBean(name, null, null, false);
 	}
-
 
 	@Override
 	public <T> T getBean(String name, Class<T> requiredType) {
 		return doGetBean(name, requiredType, null, false);
 	}
 
-
 	@Override
 	public Object getBean(String name, Object... args) {
 		return doGetBean(name, null, args, false);
 	}
 
-
 	public <T> T getBean(Class<T> requiredType) {
 		return doGetBean(null, requiredType, null, false);
 	}
-
 
 	public <T> T getBean(Class<T> requiredType, Object... args) {
 		return doGetBean(null, requiredType, args, false);
 	}
 
-
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T> T doGetBean(final String name, final Class<T> requiredType, final Object[] args, boolean typeCheckOnly) {
-
-		String beanName = name;
+		String beanName = null;
+		if (StringUtils.isNotEmpty(name)) {
+			beanName = canonicalName(name);
+		}
 		Object bean = null;
 		// Eagerly check singleton cache for manually registered singletons.
 		// no definition?
 		if (StringUtils.isEmpty(beanName) && StringUtils.isEmpty(beanName = findBeanNameByType(requiredType))) {
-			throw new CurrencyException(
-					"no bean definetion of bean which name is " + name + " and type is " + requiredType);
+			throw new SimpleException(
+					"no bean definition of bean which name is " + beanName + " and type is " + requiredType);
 		}
 		bean = getSingleton(beanName);
 		if (bean == null) {
 			if (isPrototypeCurrentlyInCreation(beanName) || isSingletonCurrentlyInCreation(beanName)) {
-				throw new CurrencyException(beanName + "is in creation!");
+				throw new SimpleException(beanName + " is in creation!");
 			}
 			if (!typeCheckOnly && beanName != null) {
 				markBeanAsCreated(beanName);
 			}
-
 			try {
 				final BeanDefinition mbd = getBeanDefinition(beanName);
-
 				// Guarantee initialization of beans that the current bean depends on.
 				String[] dependsOn = mbd.getDependsOn();
 				if (dependsOn != null) {
 					for (String dep : dependsOn) {
 						if (isDependent(beanName, dep)) {
-							throw new CurrencyException(mbd.getResourceDescription(), beanName,
+							throw new SimpleException(mbd.getResourceDescription(), beanName,
 									"Circular depends-on relationship between '" + beanName + "' and '" + dep + "'");
 						}
 						registerDependentBean(dep, beanName);
 						try {
 							getBean(dep);
 						} catch (Exception ex) {
-							throw new CurrencyException(mbd.getResourceDescription(), beanName,
+							throw new SimpleException(mbd.getResourceDescription(), beanName,
 									"'" + beanName + "' depends on missing bean '" + dep + "'", ex);
 						}
 					}
@@ -118,6 +112,7 @@ public class BeanFactory extends AbstractBeanFactory {
 							afterSingletonCreation(beanName);
 						} catch (Exception e) {
 							destroySingleton(beanName);
+							throw new SimpleException("bean " + beanName + " 创建失败", e);
 						}
 					}
 				}
@@ -145,29 +140,53 @@ public class BeanFactory extends AbstractBeanFactory {
 				return convertedBean;
 			} catch (Exception ex) {
 				log.info("Failed to convert bean '" + name + "' to required type '" + requiredType + "'", ex);
-				throw new CurrencyException(name, requiredType, bean.getClass());
+				throw new SimpleException(name, requiredType, bean.getClass());
 			}
 		}
 		return (T) bean;
 
 	}
 
+	@Override
 	public String findBeanNameByType(Class<?> requiredType) {
+		String beanName = null;
+		BeanDefinition resultBeanDefinition = null;
 		if (requiredType != null) {
-			List<String> candidates = doGetBeanNamesForType(requiredType);
+			Set<String> candidates = getBeanNamesForType(requiredType);
 			if (candidates != null && candidates.size() > 0) {
-				return candidates.get(0);
+				if (candidates.size() > 1) {
+					for (String candidate : candidates) {
+						BeanDefinition bd = beanDefinitionMap.get(candidate);
+						if (resultBeanDefinition == null || (bd.isPrimary() & !resultBeanDefinition.isPrimary())
+								|| compareOrder(bd, resultBeanDefinition, requiredType)) {
+							resultBeanDefinition = bd;
+							beanName = candidate;
+						}
+					}
+				} else {
+					beanName = candidates.iterator().next();
+				}
+
+
 			}
 		}
-		return null;
+		return beanName;
 	}
 
+	private boolean compareOrder(BeanDefinition a, BeanDefinition b, Class<?> requiredType) {
+		Integer x = (a.getBeanOrder() == null ? Integer.MAX_VALUE : a.getBeanOrder());
+		Integer y = (b.getBeanOrder() == null ? Integer.MAX_VALUE : b.getBeanOrder());
+		if (x == y) {
+			log.info("you have more then one candidate for class " + requiredType
+					+ " always ,we will chose the first one finded!");
+		}
+		return x < y;
+	}
 
 	@Override
 	public boolean containsBean(String name) {
 		return beanDefinitionNames.contains(name);
 	}
-
 
 	@Override
 	public boolean containsBean(Class<?> type) {
@@ -179,84 +198,42 @@ public class BeanFactory extends AbstractBeanFactory {
 		return false;
 	}
 
-
 	boolean isSingleton(String name) {
 		return false;
 	}
-
 
 	boolean isPrototype(String name) {
 		return false;
 	}
 
-
-	boolean isTypeMatch(String name, Class<?> typeToMatch) {
-		BeanDefinition mbd = beanDefinitionMap.get(name);
-		if (mbd != null) {
-			if (mbd.getBeanClass().equals(typeToMatch)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-
 	Class<?> getType(String name) {
 		return null;
 	}
-
 
 	String[] getAliases(String name) {
 		return null;
 	}
 
-	@Override
-	public <T> Map<String, T> getBeansOfType(Class<T> type) {
-		return getBeansOfType(type, false, false);
-	}
-
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T> Map<String, T> getBeansOfType(Class<T> type, boolean includeNonSingletons, boolean allowEagerInit) {
+	public <T> Map<String, T> getBeans(Class<T> type) {
 
-		List<String> beanNames = doGetBeanNamesForType(type);
+		Set<String> beanNames = getBeanNamesForType(type);
 		Map<String, T> result = new LinkedHashMap<>(beanNames.size());
 		for (String beanName : beanNames) {
 			try {
 				Object beanInstance = getBean(beanName);
 				result.put(beanName, (T) beanInstance);
 			} catch (Exception ex) {
-				// just ignore
+				// just ignore the bean in creation
 			}
 		}
 		return result;
 	}
-
-	@Override
-	public List<String> doGetBeanNamesForType(Class<?> type) {
-		List<String> result = new ArrayList<>();
-
-		// Check all bean definitions.
-		for (String beanName : this.beanDefinitionNames) {
-			boolean matchFound = isTypeMatch(beanName, type);
-			if (matchFound) {
-				result.add(beanName);
-			}
-
-		}
-		return result;
-	}
-
-
-	void ignoreDependencyType(Class<?> type) {
-	}
-
 
 	void ignoreDependencyInterface(Class<?> ifc) {
 		this.ignoredDependencyInterfaces.add(ifc);
 	}
-
-
 
 	public void registerResolvableDependency(Class<?> dependencyType, Object autowiredValue) {
 		if (autowiredValue != null) {
@@ -268,18 +245,16 @@ public class BeanFactory extends AbstractBeanFactory {
 		}
 	}
 
-
 	boolean isAutowireCandidate(String beanName, BeanDefinition bd) {
 		return false;
 	}
-
 
 	@Override
 	public BeanDefinition getBeanDefinition(String name) {
 		String beanName = canonicalName(name.replaceAll("&", ""));
 		BeanDefinition bd = this.beanDefinitionMap.get(beanName);
 		if (bd == null)
-			throw new CurrencyException("no bean " + beanName + " defined!");
+			throw new SimpleException("no bean " + beanName + " defined!");
 		// Set default singleton scope, if not configured before.
 		if (!StringUtils.hasLength(bd.getScope())) {
 			bd.setScope(BeanDefinition.SCOPE_SINGLETON);
@@ -287,9 +262,9 @@ public class BeanFactory extends AbstractBeanFactory {
 		return bd;
 	}
 
-
-	Iterator<String> getBeanNamesIterator() {
-		return null;
+	@Override
+	public Collection<BeanDefinition> getBeanDefinitions() {
+		return this.beanDefinitionMap.values();
 	}
 
 
@@ -297,19 +272,15 @@ public class BeanFactory extends AbstractBeanFactory {
 
 	}
 
-
 	void freezeConfiguration() {
 
 	}
-
 
 	boolean isConfigurationFrozen() {
 		return false;
 	}
 
-
-	void preInstantiateSingletons() {
-	}
+	void preInstantiateSingletons() {}
 
 	public void addProcessor(Processor Processor) {
 		this.processors.remove(Processor);
@@ -330,7 +301,6 @@ public class BeanFactory extends AbstractBeanFactory {
 		return processors;
 	}
 
-
 	public void registerAlias(String name, String alias) {
 		synchronized (this.aliasMap) {
 			if (alias.equals(name)) {
@@ -348,23 +318,22 @@ public class BeanFactory extends AbstractBeanFactory {
 		}
 	}
 
+	public void registerAliases(String name, String[] aliases) {
+		for (String alias : aliases) {
+			registerAlias(name, alias);
+		}
+	}
+
 	public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) {
 
 		BeanDefinition existingDefinition = this.beanDefinitionMap.get(beanName);
 		if (existingDefinition != null) {
-			if (!isAllowBeanDefinitionOverriding()) {
-				throw new CurrencyException(beanName + "beanDefinition exist current = " + beanDefinition
-						+ ",to be added " + existingDefinition);
-			} else if (existingDefinition.getRole() < beanDefinition.getRole()) {
-				// e.g. was ROLE_APPLICATION, now overriding with ROLE_SUPPORT or
-				// ROLE_INFRASTRUCTURE
-				// ig
-			} else if (!beanDefinition.equals(existingDefinition)) {
-				// ig
-			} else {
-				//
+			if (!beanDefinition.equals(existingDefinition)) {
+				if (!isAllowBeanDefinitionOverriding()) {
+					throw new SimpleException("beanDefinition of " + beanName + " is exist ");
+				}
+				this.beanDefinitionMap.put(beanName, beanDefinition);
 			}
-			this.beanDefinitionMap.put(beanName, beanDefinition);
 		} else {
 			if (getAlreadyCreated().contains(beanName)) {
 				// Cannot modify startup-time collection elements anymore (for stable iteration)
@@ -387,7 +356,6 @@ public class BeanFactory extends AbstractBeanFactory {
 		}
 	}
 
-
 	protected void resetBeanDefinition(String beanName) {
 
 		// Remove corresponding bean from singleton cache, if any. Shouldn't usually
@@ -402,20 +370,17 @@ public class BeanFactory extends AbstractBeanFactory {
 
 	}
 
-
 	@Override
 	public void destroySingleton(String beanName) {
 		// Remove a registered singleton of the given name, if any.
 		removeSingleton(beanName);
 	}
 
-
 	protected void removeSingleton(String beanName) {
 		synchronized (this.singletonObjects) {
 			this.singletonObjects.remove(beanName);
 		}
 	}
-
 
 	@Override
 	public boolean containsBeanDefinition(String beanName) {
@@ -432,13 +397,27 @@ public class BeanFactory extends AbstractBeanFactory {
 	}
 
 	@Override
-	public String[] getBeanNamesForType(Class<?> type) {
-		return (String[]) getBeansOfType(type).keySet().toArray();
+	public Set<String> getBeanNamesForType(Class<?> type) {
+		return getBeanDefinitions(type).keySet();
 	}
 
 	@Override
-	public String[] getBeanNamesForType(Class<?> type, boolean includeNonSingletons, boolean allowEagerInit) {
-		return getBeansOfType(type, includeNonSingletons, allowEagerInit).keySet().toArray(new String[0]);
+	public Map<String, BeanDefinition> getBeanDefinitions(Class<?> type) {
+		Map<String, BeanDefinition> map = new HashMap<String, BeanDefinition>(2);
+		for (Entry<String, BeanDefinition> entry : beanDefinitionMap.entrySet()) {
+			BeanDefinition bd = entry.getValue();
+			String beanName = entry.getKey();
+			Class<?> clazz;
+			if (bd.hasBeanClass()) {
+				clazz = bd.getBeanClass();
+			} else {
+				clazz = bd.resolveBeanClass();
+			}
+			if (clazz.equals(type)) {
+				map.put(beanName, bd);
+			}
+		}
+		return map;
 	}
 
 	public boolean isAllowBeanDefinitionOverriding() {
@@ -458,10 +437,9 @@ public class BeanFactory extends AbstractBeanFactory {
 		return this.singletonObjects.containsKey(beanName);
 	}
 
-	public boolean isBeanNameInUse(String beanClassName) {
-		return this.aliasMap.containsKey(beanClassName) && this.beanDefinitionMap.containsKey(beanClassName);
+	public boolean isBeanNameInUse(String beanName) {
+		return this.aliasMap.containsKey(beanName) && this.beanDefinitionMap.containsKey(beanName);
 	}
-
 
 	@Override
 	public Object getSingleton(String beanName) {
@@ -469,12 +447,9 @@ public class BeanFactory extends AbstractBeanFactory {
 	}
 
 	@Override
-	public void addSingleton(String beanName,Object bean) {
-		 this.singletonObjects.put(beanName,bean);
+	public void addSingleton(String beanName, Object bean) {
+		this.singletonObjects.put(beanName, bean);
 	}
-
-
-	
 
 	@Override
 	protected boolean removeSingletonIfCreatedForTypeCheckOnly(String beanName) {
@@ -490,7 +465,6 @@ public class BeanFactory extends AbstractBeanFactory {
 	public <T> T getBean(String name, Class<T> requiredType, Object... args) {
 		return doGetBean(name, requiredType, args, false);
 	}
-
 
 	protected void markBeanAsCreated(String beanName) {
 		if (!this.alreadyCreated.contains(beanName)) {

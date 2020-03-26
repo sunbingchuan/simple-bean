@@ -13,21 +13,9 @@ import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.Resource;
 import com.bc.simple.bean.common.config.ConfigLoader;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
-import com.bc.simple.bean.core.support.CurrencyException;
+import com.bc.simple.bean.core.support.SimpleException;
 
-/**
- * Abstract base class for bean definition readers which implement the
- * {@link BeanDefinitionReader} interface.
- *
- * <p>
- * Provides common properties like the bean factory to work on and the class
- * loader to use for loading bean classes.
- *
- * @author Juergen Hoeller
- * @author Chris Beams
- * @since 11.12.2003
- * @see BeanDefinitionReaderUtils
- */
+
 public class BeanDefinitionReader {
 
 	private Log log = LogFactory.getLog(this.getClass());
@@ -38,28 +26,7 @@ public class BeanDefinitionReader {
 
 	private final ThreadLocal<Set<Resource>> resourcesCurrentlyBeingLoaded = new ThreadLocal<>();
 
-	/**
-	 * Create a new AbstractBeanDefinitionReader for the given bean factory.
-	 * <p>
-	 * If the passed-in bean factory does not only implement the
-	 * BeanDefinitionRegistry interface but also the ResourceLoader interface, it
-	 * will be used as default ResourceLoader as well. This will usually be the case
-	 * for {@link org.springframework.context.ApplicationContext} implementations.
-	 * <p>
-	 * If given a plain BeanDefinitionRegistry, the default ResourceLoader will be a
-	 * {@link org.springframework.core.io.support.PathMatchingResourcePatternResolver}.
-	 * <p>
-	 * If the passed-in bean factory also implements {@link EnvironmentCapable} its
-	 * environment will be used by this reader. Otherwise, the reader will
-	 * initialize and use a {@link StandardEnvironment}. All ApplicationContext
-	 * implementations are EnvironmentCapable, while normal BeanFactory
-	 * implementations are not.
-	 * 
-	 * @param registry the BeanFactory to load bean definitions into, in the form of
-	 *                 a BeanDefinitionRegistry
-	 * @see #setResourceLoader
-	 * @see #setEnvironment
-	 */
+
 	public BeanDefinitionReader(BeanFactory beanFactory) {
 		this.beanFactory = beanFactory;
 	}
@@ -68,15 +35,7 @@ public class BeanDefinitionReader {
 		return this.beanFactory;
 	}
 
-	/**
-	 * Set the ClassLoader to use for bean classes.
-	 * <p>
-	 * Default is {@code null}, which suggests to not load bean classes eagerly but
-	 * rather to just register bean definitions with class names, with the
-	 * corresponding Classes to be resolved later (or never).
-	 * 
-	 * @see Thread#getContextClassLoader()
-	 */
+
 	public void setBeanClassLoader(ClassLoader beanClassLoader) {
 		this.beanClassLoader = beanClassLoader;
 	}
@@ -93,13 +52,7 @@ public class BeanDefinitionReader {
 		return count;
 	}
 
-	/**
-	 * Load bean definitions from the specified XML file.
-	 * 
-	 * @param resource the resource descriptor for the XML file
-	 * @return the number of bean definitions found
-	 * @throws BeanDefinitionStoreException in case of loading or parsing errors
-	 */
+
 	public int loadBeanDefinitions(Resource resource) {
 
 		Set<Resource> currentResources = this.resourcesCurrentlyBeingLoaded.get();
@@ -108,7 +61,8 @@ public class BeanDefinitionReader {
 			this.resourcesCurrentlyBeingLoaded.set(currentResources);
 		}
 		if (!currentResources.add(resource)) {
-			throw new CurrencyException("Detected cyclic loading of " + resource + " - check your import definitions!");
+			throw new SimpleException(
+					"Detected cycle loading of " + resource + " , please check your import definitions!");
 		}
 		try {
 			InputStream inputStream = resource.getInputStream();
@@ -118,7 +72,7 @@ public class BeanDefinitionReader {
 				inputStream.close();
 			}
 		} catch (IOException ex) {
-			throw new CurrencyException("IOException parsing XML document from " + resource, ex);
+			throw new SimpleException("IOException parsing XML document from " + resource, ex);
 		} finally {
 			currentResources.remove(resource);
 			if (currentResources.isEmpty()) {
@@ -133,7 +87,7 @@ public class BeanDefinitionReader {
 			Node doc = ConfigLoader.load(resource.getFile());
 			registerBeanDefinitions(doc, resource);
 		} catch (Exception e) {
-			throw new CurrencyException("parse beandefinitions failed!", e);
+			throw new SimpleException("Parse beandefinitions failed!", e);
 		}
 
 		return count;
@@ -144,7 +98,7 @@ public class BeanDefinitionReader {
 			Resource resource = new Resource(this.beanClassLoader.getResource(location));
 			return loadBeanDefinitions(resource);
 		} catch (URISyntaxException e) {
-			log.info(location + "load failed!");
+			log.info(location + " load failed!");
 		}
 		return 0;
 	}
@@ -157,24 +111,10 @@ public class BeanDefinitionReader {
 		return count;
 	}
 
-	/**
-	 * Register the bean definitions contained in the given DOM document. Called by
-	 * {@code loadBeanDefinitions}.
-	 * <p>
-	 * Creates a new instance of the parser class and invokes
-	 * {@code registerBeanDefinitions} on it.
-	 * 
-	 * @param doc      the DOM document
-	 * @param resource the resource descriptor (for context information)
-	 * @return the number of bean definitions found
-	 * @throws BeanDefinitionStoreException in case of parsing errors
-	 * @see #loadBeanDefinitions
-	 * @see #setDocumentReaderClass
-	 * @see BeanDefinitionDocumentReader#registerBeanDefinitions
-	 */
+
 	public int registerBeanDefinitions(Node doc, Resource resource) {
-		BeanDefinitionDocumentReader documentReader = new BeanDefinitionDocumentReader(this, this.getBeanFactory(),
-				resource);
+		BeanDefinitionDocumentReader documentReader =
+				new BeanDefinitionDocumentReader(this, this.getBeanFactory(), resource);
 		int countBefore = getBeanFactory().getBeanDefinitionCount();
 		documentReader.registerBeanDefinitions(doc);
 		return this.getBeanFactory().getBeanDefinitionCount() - countBefore;

@@ -30,8 +30,6 @@ package com.bc.simple.bean.core.asm;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A parser to make a {@link ClassVisitor} visit a ClassFile structure, as
@@ -154,7 +152,10 @@ public class ClassReader {
 	 */
 	public final int header;
 
-	private List<String> methodFilters = new ArrayList<>();
+	private MethodFilter methodFilter = MethodFilter.DEFAULT;
+	
+	private int codeSkip=0;
+	
 	// -----------------------------------------------------------------------------------------------
 	// Constructors
 	// -----------------------------------------------------------------------------------------------
@@ -1111,11 +1112,8 @@ public class ClassReader {
 			}
 			currentOffset += attributeLength;
 		}
-		if (methodFilters.contains(context.currentMethodName)) {
-			return currentOffset;
-		}
 		// Visit the method declaration.
-		MethodVisitor methodVisitor = classVisitor.visitMethod(context.currentMethodAccessFlags,
+		MethodVisitor methodVisitor = methodFilter.visitMethod(this,classVisitor,context.currentMethodAccessFlags,
 				context.currentMethodName, context.currentMethodDescriptor,
 				signatureIndex == 0 ? null : readUTF(signatureIndex, charBuffer), exceptions);
 		if (methodVisitor == null) {
@@ -1275,15 +1273,15 @@ public class ClassReader {
 	 */
 	private void readCode(final MethodVisitor methodVisitor, final Context context, final int codeOffset) {
 		int currentOffset = codeOffset;
-
 		// Read the max_stack, max_locals and code_length fields.
 		final byte[] classFileBuffer = b;
 		final char[] charBuffer = context.charBuffer;
 		final int maxStack = readUnsignedShort(currentOffset);
 		final int maxLocals = readUnsignedShort(currentOffset + 2);
-		final int codeLength = readInt(currentOffset + 4);
+		final int codeLength = readInt(currentOffset + 4)-codeSkip;
 		currentOffset += 8;
-
+		currentOffset+=codeSkip;
+		codeSkip=0;
 		// Read the bytecode 'code' array to create a label for each referenced
 		// instruction.
 		final int bytecodeStartOffset = currentOffset;
@@ -3570,8 +3568,27 @@ public class ClassReader {
 		return this;
 	}
 
-	public ClassReader addMethodFilter(String methodName) {
-		this.methodFilters.add(methodName);
+	public ClassReader setMethodFilter(MethodFilter methodFilter) {
+		this.methodFilter=methodFilter;
 		return this;
+	}
+	
+	public void addCodeSkip(int add) {
+		this.codeSkip+=add;
+	}
+	
+	public static class MethodFilter{
+		public static final MethodFilter DEFAULT=new MethodFilter();
+		
+		public  MethodVisitor visitMethod(
+				ClassReader classReader,
+				ClassVisitor classVisitor,
+			      final int access,
+			      final String name,
+			      final String descriptor,
+			      final String signature,
+			      final String[] exceptions){
+			return classVisitor.visitMethod(access, name, descriptor, signature, exceptions);
+		}
 	}
 }

@@ -11,14 +11,17 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -28,16 +31,17 @@ import org.apache.commons.logging.LogFactory;
 
 import com.bc.simple.bean.ApplicationContext;
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.common.stereotype.Qualifier;
-import com.bc.simple.bean.common.stereotype.Value;
+import com.bc.simple.bean.common.annotation.Qualifier;
+import com.bc.simple.bean.common.annotation.Value;
 import com.bc.simple.bean.common.support.ConvertService;
 import com.bc.simple.bean.common.support.ConvertService.Converter;
 import com.bc.simple.bean.common.util.BeanUtils;
+import com.bc.simple.bean.common.util.Constant;
 import com.bc.simple.bean.common.util.StringUtils;
 import com.bc.simple.bean.core.processor.Processor;
 import com.bc.simple.bean.core.support.BeanMonitor;
-import com.bc.simple.bean.core.support.CurrencyException;
 import com.bc.simple.bean.core.support.DependencyDescriptor;
+import com.bc.simple.bean.core.support.SimpleException;
 import com.bc.simple.bean.core.workshop.BeanCreateWorkshop;
 import com.bc.simple.bean.core.workshop.BeanFittingWorkshop;
 import com.bc.simple.bean.core.workshop.DependencyResolveWorkshop;
@@ -63,9 +67,7 @@ public abstract class AbstractBeanFactory extends Factory {
 
 	protected final Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>(256);
 
-
 	protected boolean hasInstantiationAwareBeanProcessors = false;
-
 
 	protected boolean allowRawInjectionDespiteWrapping = false;
 
@@ -75,7 +77,6 @@ public abstract class AbstractBeanFactory extends Factory {
 	/** Names of beans that are currently in creation. */
 	private final ThreadLocal<Object> prototypesCurrentlyInCreation = new ThreadLocal<>();
 
-
 	protected final Map<String, Set<String>> dependentBeanMap = new ConcurrentHashMap<>(64);
 
 	/** Map from dependency type to corresponding autowired value. */
@@ -84,11 +85,9 @@ public abstract class AbstractBeanFactory extends Factory {
 	/** Optional OrderComparator for dependency Lists and arrays. */
 	private Comparator<Object> dependencyComparator;
 
-
 	protected final ConvertService convertService = new ConvertService();
 
 	public static final Object[] EMPTY_ARGS = new Object[0];
-
 
 	protected final Map<String, Set<String>> dependenciesForBeanMap = new ConcurrentHashMap<>(64);
 
@@ -105,24 +104,20 @@ public abstract class AbstractBeanFactory extends Factory {
 	/** Cache of singleton objects: bean name to bean instance. */
 	protected final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
 
-	public final ThreadLocal<StoreRoom<?,?,?>> currentStoreRoom = new ThreadLocal<>();
-	
-	
-	public final  String getBeanKey;
+	public final ThreadLocal<StoreRoom<?, ?, ?>> currentStoreRoom = new ThreadLocal<>();
+
+	public final String getBeanKey;
 	public final String resolveDependencyKey;
-	
-	
+
 	public AbstractBeanFactory() {
-		Workshop getBean= new BeanCreateWorkshop(this);
+		Workshop getBean = new BeanCreateWorkshop(this);
 		getBean.next(new BeanFittingWorkshop(this));
-		this.getBeanKey=addWorkshop(getBean);
-		this.resolveDependencyKey=addWorkshop(new DependencyResolveWorkshop(this));
+		this.getBeanKey = addWorkshop(getBean);
+		this.resolveDependencyKey = addWorkshop(new DependencyResolveWorkshop(this));
 	}
 
-
-
 	protected Object doCreateBean(final String beanName, final BeanDefinition mbd, final Object[] args) {
-		StoreRoom<?, ?, ?> previousStoreRoom =  currentStoreRoom.get();
+		StoreRoom<?, ?, ?> previousStoreRoom = currentStoreRoom.get();
 		currentStoreRoom.set(new StoreRoom<BeanDefinition, Object[], Object>(mbd, args, null));
 		produce(getBeanKey);
 		Object bean = currentStoreRoom.get().getZ();
@@ -130,18 +125,15 @@ public abstract class AbstractBeanFactory extends Factory {
 		return bean;
 	}
 
-
-	public void applyMergedBeanDefinitionPostProcessors(BeanDefinition mbd, String beanName) {
+	public void applyMergedBeanDefinitionPostProcessors(BeanDefinition mbd) {
 		for (Processor bp : getProcessors()) {
 			bp.postProcessMergedBeanDefinition(mbd);
 		}
 	}
 
-
 	public boolean isSingletonCurrentlyInCreation(String beanName) {
 		return this.singletonsCurrentlyInCreation.contains(beanName);
 	}
-
 
 	public Object initializeBean(final String beanName, final Object bean, BeanDefinition mbd) {
 
@@ -153,7 +145,8 @@ public abstract class AbstractBeanFactory extends Factory {
 		try {
 			invokeInitMethods(beanName, wrappedBean, mbd);
 		} catch (Throwable ex) {
-			throw new CurrencyException(mbd.getResourceDescription() + beanName + "Invocation of init method failed", ex);
+			throw new SimpleException("bean " + beanName + " defined at " + mbd.getResourceDescription()
+					+ " invocate  init method failed!", ex);
 		}
 		if (mbd == null || !mbd.isSynthetic()) {
 			wrappedBean = applyBeanProcessorsAfterInitialization(wrappedBean, beanName);
@@ -161,14 +154,11 @@ public abstract class AbstractBeanFactory extends Factory {
 		return wrappedBean;
 	}
 
-
 	public abstract Object getSingleton(String beanName);
-
 
 	protected boolean hasDependentBean(String beanName) {
 		return this.dependentBeanMap.containsKey(beanName);
 	}
-
 
 	public String[] getDependentBeans(String beanName) {
 		Set<String> dependentBeans = this.dependentBeanMap.get(beanName);
@@ -180,16 +170,13 @@ public abstract class AbstractBeanFactory extends Factory {
 		}
 	}
 
-
 	protected abstract boolean removeSingletonIfCreatedForTypeCheckOnly(String beanName);
-
 
 	public void registerMonitorBeanIfNecessary(String beanName, Object bean, BeanDefinition mbd) {
 		if (bean instanceof BeanMonitor) {
 			mbd.registerMonitor((BeanMonitor) bean);
 		}
 	}
-
 
 	public Object obtainFromSupplier(Supplier<?> instanceSupplier, String beanName) {
 		Object instance = null;
@@ -209,17 +196,17 @@ public abstract class AbstractBeanFactory extends Factory {
 		this.convertService.addConverter(converter);
 	}
 
-
-
-	public Constructor<?>[] determineConstructorsFromBeanProcessors(Class<?> beanClass, String beanName) {
+	public Constructor<?>[] determineConstructorsFromBeanProcessors(Class<?> beanClass) {
+		Constructor<?>[] result = null;
 		if (beanClass != null && hasInstantiationAwareBeanProcessors()) {
-			return beanClass.getDeclaredConstructors();
+			for (Processor processor : getProcessors()) {
+				result = processor.determineConstructors(beanClass);
+			}
 		}
-		return null;
+		return result;
 	}
 
 	public abstract List<Processor> getProcessors();
-
 
 	public boolean hasInstantiationAwareBeanProcessors() {
 		return this.hasInstantiationAwareBeanProcessors;
@@ -249,12 +236,11 @@ public abstract class AbstractBeanFactory extends Factory {
 		return result;
 	}
 
-
 	protected void invokeInitMethods(String beanName, final Object bean, BeanDefinition mbd) throws Throwable {
 
 		boolean isMonitorBean = (bean instanceof BeanMonitor);
 		if (isMonitorBean && (mbd == null || !mbd.isExternallyManagedInitMethod("afterPropertiesSet"))) {
-			log.info("Invoking afterPropertiesSet() on bean with name '" + beanName + "'");
+			log.debug("Invoking afterPropertiesSet() on bean with name '" + beanName + "'");
 			((BeanMonitor) bean).afterPropertiesSet();
 		}
 		if (mbd != null && bean != null) {
@@ -275,9 +261,7 @@ public abstract class AbstractBeanFactory extends Factory {
 
 	public abstract Object getBean(String name, Object... args);
 
-
 	public abstract <T> T getBean(String name, Class<T> requiredType, Object... args);
-
 
 	protected void invokeCustomInitMethod(String beanName, final Object bean, BeanDefinition mbd) throws Throwable {
 
@@ -285,11 +269,10 @@ public abstract class AbstractBeanFactory extends Factory {
 		final Method initMethod = BeanUtils.findMethod(bean.getClass(), initMethodName);
 		if (initMethod == null) {
 			if (mbd.isEnforceInitMethod()) {
-				throw new CurrencyException("Could not find an init method named '" + initMethodName
-						+ "' on bean with name '" + beanName + "'");
+				throw new SimpleException(
+						"Could not find an init method named '" + initMethodName + "' on bean '" + beanName + "'");
 			} else {
-				log.info("No default init method named '" + initMethodName + "' found on bean with name '"
-						+ beanName + "'");
+				log.info("No default init method named '" + initMethodName + "' found on bean  '" + beanName + "'");
 				// Ignore non-existent default lifecycle methods.
 				return;
 			}
@@ -325,23 +308,21 @@ public abstract class AbstractBeanFactory extends Factory {
 
 	public abstract boolean containsSingleton(String beanName);
 
-
 	public void registerDependentBean(String beanName, String dependentBeanName) {
 		String canonicalName = canonicalName(beanName);
 		synchronized (this.dependentBeanMap) {
-			Set<String> dependentBeans = this.dependentBeanMap.computeIfAbsent(canonicalName,
-					k -> new LinkedHashSet<>(8));
+			Set<String> dependentBeans =
+					this.dependentBeanMap.computeIfAbsent(canonicalName, k -> new LinkedHashSet<>(8));
 			if (!dependentBeans.add(dependentBeanName)) {
 				return;
 			}
 		}
 		synchronized (this.dependenciesForBeanMap) {
-			Set<String> dependenciesForBean = this.dependenciesForBeanMap.computeIfAbsent(dependentBeanName,
-					k -> new LinkedHashSet<>(8));
+			Set<String> dependenciesForBean =
+					this.dependenciesForBeanMap.computeIfAbsent(dependentBeanName, k -> new LinkedHashSet<>(8));
 			dependenciesForBean.add(canonicalName);
 		}
 	}
-
 
 	public String canonicalName(String name) {
 		String canonicalName = name;
@@ -376,16 +357,11 @@ public abstract class AbstractBeanFactory extends Factory {
 		this.dependencyComparator = dependencyComparator;
 	}
 
-	public abstract <T> Map<String, T> getBeansOfType(Class<T> type);
-
-	public abstract <T> Map<String, T> getBeansOfType(Class<T> type, boolean includeNonSingletons,
-			boolean allowEagerInit);
+	public abstract <T> Map<String, T> getBeans(Class<T> type);
 
 	public abstract String[] getBeanDefinitionNames();
 
-	public abstract String[] getBeanNamesForType(Class<?> type);
-
-	public abstract String[] getBeanNamesForType(Class<?> type, boolean includeNonSingletons, boolean allowEagerInit);
+	public abstract Set<String> getBeanNamesForType(Class<?> type);
 
 	public boolean isAutowireCandidate(String beanName, DependencyDescriptor descriptor) {
 		BeanDefinition bd = null;
@@ -399,7 +375,6 @@ public abstract class AbstractBeanFactory extends Factory {
 		return match;
 	}
 
-
 	protected boolean isPrototypeCurrentlyInCreation(String beanName) {
 		Object curVal = this.prototypesCurrentlyInCreation.get();
 		return (curVal != null
@@ -408,9 +383,6 @@ public abstract class AbstractBeanFactory extends Factory {
 
 	public abstract <T> T doGetBean(final String name, final Class<T> requiredType, final Object[] args,
 			boolean typeCheckOnly);
-
-	public abstract List<String> doGetBeanNamesForType(Class<?> type);
-
 
 	protected boolean isDependent(String beanName, String dependentBeanName) {
 		synchronized (this.dependentBeanMap) {
@@ -442,13 +414,11 @@ public abstract class AbstractBeanFactory extends Factory {
 		return false;
 	}
 
-
 	protected void beforeSingletonCreation(String beanName) {
 		if (!this.singletonsCurrentlyInCreation.add(beanName)) {
 			throw new IllegalStateException(beanName);
 		}
 	}
-
 
 	protected void afterSingletonCreation(String beanName) {
 		if (!this.singletonsCurrentlyInCreation.remove(beanName)) {
@@ -456,9 +426,7 @@ public abstract class AbstractBeanFactory extends Factory {
 		}
 	}
 
-
 	public abstract void destroySingleton(String beanName);
-
 
 	@SuppressWarnings("unchecked")
 	protected void beforePrototypeCreation(String beanName) {
@@ -476,7 +444,6 @@ public abstract class AbstractBeanFactory extends Factory {
 		}
 	}
 
-
 	@SuppressWarnings("unchecked")
 	protected void afterPrototypeCreation(String beanName) {
 		Object curVal = this.prototypesCurrentlyInCreation.get();
@@ -491,7 +458,6 @@ public abstract class AbstractBeanFactory extends Factory {
 		}
 	}
 
-
 	protected void cleanupAfterBeanCreationFailure(String beanName) {
 		synchronized (this.beanDefinitionMap) {
 			this.alreadyCreated.remove(beanName);
@@ -503,7 +469,6 @@ public abstract class AbstractBeanFactory extends Factory {
 				&& (Collection.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type))));
 	}
 
-
 	public boolean isPrimary(String beanName, Object beanInstance) {
 		if (containsBeanDefinition(beanName)) {
 			return getBeanDefinition(beanName).isPrimary();
@@ -512,13 +477,16 @@ public abstract class AbstractBeanFactory extends Factory {
 	}
 
 	public Collection<String> getAliasesArray(String name) {
-		String[] aliases = getBeanDefinition(name).getAliases();
+		BeanDefinition bd = getBeanDefinition(name);
+		if (bd == null) {
+			return Collections.emptySet();
+		}
+		String[] aliases = bd.getAliases();
 		if (aliases == null) {
 			return Collections.emptySet();
 		}
 		return Arrays.asList(getBeanDefinition(name).getAliases());
 	}
-
 
 	public void onSuppressedException(Exception ex) {
 		if (this.suppressedExceptions != null) {
@@ -527,20 +495,22 @@ public abstract class AbstractBeanFactory extends Factory {
 	}
 
 	public void cacheConstructorAndArgs(BeanDefinition mbd, Executable constructor, Object[] args) {
-		synchronized (mbd.constructorArgumentLock) {
-			mbd.resolvedConstructorOrFactoryMethod = constructor;
-			mbd.constructorArgumentsResolved = true;
-			mbd.resolvedConstructorArguments = args;
+		synchronized (mbd.buildArgumentLock) {
+			mbd.buildMethod = constructor;
+			mbd.buildArgumentsResolved = true;
+			mbd.resolvedBuildArguments = args;
 		}
 	}
 
 	@SuppressWarnings("unchecked")
 	public Object resolveDependency(DependencyDescriptor dependencyDescriptor, String beanName,
 			Set<String> autowiredBeanNames) {
-		StoreRoom<?, ?, ?> previousStoreRoom =  currentStoreRoom.get();
-		currentStoreRoom.set(new LargeStoreRoom<DependencyDescriptor, String, Object,Set<String>,Object>(dependencyDescriptor, beanName, autowiredBeanNames,null,null));
+		StoreRoom<?, ?, ?> previousStoreRoom = currentStoreRoom.get();
+		currentStoreRoom.set(new LargeStoreRoom<DependencyDescriptor, String, Object, Set<String>, Object>(
+				dependencyDescriptor, beanName, autowiredBeanNames, null, null));
 		produce(resolveDependencyKey);
-		LargeStoreRoom<DependencyDescriptor, String, Set<String>,Object,Object> storeRoom=(LargeStoreRoom<DependencyDescriptor, String,  Set<String>, Object,Object>) currentStoreRoom.get();
+		LargeStoreRoom<DependencyDescriptor, String, Set<String>, Object, Object> storeRoom =
+				(LargeStoreRoom<DependencyDescriptor, String, Set<String>, Object, Object>) currentStoreRoom.get();
 		Object bean = storeRoom.getM();
 		currentStoreRoom.set(previousStoreRoom);
 		return bean;
@@ -554,10 +524,109 @@ public abstract class AbstractBeanFactory extends Factory {
 		return bd.getMonitoredBeans();
 	}
 
-	public abstract void addSingleton(String beanName, Object bean) ;
-	
-	
+	@SuppressWarnings("unchecked")
+	public Object parseValue(String createdBeanName, Map<String, Object> define) {
+		String type = StringUtils.toString(define.get(Constant.ATTR_TYPE));
+		if (StringUtils.isEmpty(type) || Constant.TYPE_STRING_VALUE.equals(type)) {
+			return define.get(Constant.ATTR_VALUE);
+		} else if (Constant.TYPE_REF_VALUE.equals(type)) {
+			String beanName = (String) define.get(Constant.ATTR_REF);
+			Class<?> classType = null;
+			String refType = StringUtils.toString(define.get(Constant.ATTR_REF_TYPE));
+			if (StringUtils.hasLength(refType)) {
+				classType = BeanUtils.forName(refType, null);
+			}
+			if (StringUtils.isEmpty(beanName)) {
+				beanName = findBeanNameByType(classType);
+			}
+			registerDependentBean(createdBeanName, beanName);
+			return getBean(beanName);
+		} else if (Constant.TYPE_MAP_VALUE.equals(type)) {
+			List<Map<String, Object>> list = (List<Map<String, Object>>) define.get(Constant.ATTR_VALUE);
+			return parseMap(createdBeanName, list);
+		} else if (Constant.TYPE_SET_VALUE.equals(type)) {
+			List<Map<String, Object>> list = (List<Map<String, Object>>) define.get(Constant.ATTR_VALUE);
+			return parseSet(createdBeanName, list);
+		} else if (Constant.TYPE_LIST_VALUE.equals(type)) {
+			List<Map<String, Object>> list = (List<Map<String, Object>>) define.get(Constant.ATTR_VALUE);
+			return parseList(createdBeanName, list);
+		} else if (Constant.TYPE_ARRAY_VALUE.equals(type)) {
+			List<Map<String, Object>> list = (List<Map<String, Object>>) define.get(Constant.ATTR_VALUE);
+			return parseArray(createdBeanName, list);
+		} else if (Constant.TYPE_PROPS_VALUE.equals(type)) {
+			List<Map<String, Object>> list = (List<Map<String, Object>>) define.get(Constant.ATTR_VALUE);
+			return parseProps(createdBeanName, list);
+		}
+		return null;
+	}
+
+	@SuppressWarnings({"unchecked"})
+	private Properties parseProps(String createdBeanName, List<Map<String, Object>> list) {
+		Properties result = new Properties();
+		for (Map<String, Object> map : list) {
+			Object key = parseValue(createdBeanName, (Map<String, Object>) map.get(Constant.ATTR_KEY));
+			Object value = parseValue(createdBeanName, (Map<String, Object>) map.get(Constant.ATTR_VALUE));
+			if (key != null) {
+				result.put(key, value);
+			}
+		}
+		return result;
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private Map parseMap(String createdBeanName, List<Map<String, Object>> list) {
+		Map result = new HashMap<>();
+		for (Map<String, Object> map : list) {
+			Object key = parseValue(createdBeanName, (Map<String, Object>) map.get(Constant.ATTR_KEY));
+			Object value = parseValue(createdBeanName, (Map<String, Object>) map.get(Constant.ATTR_VALUE));
+			if (key != null) {
+				result.put(key, value);
+			}
+		}
+		return result;
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private List parseList(String createdBeanName, List<Map<String, Object>> list) {
+		List result = new ArrayList<>();
+		for (Map<String, Object> map : list) {
+			Object val = parseValue(createdBeanName, map);
+			if (val != null) {
+				result.add(val);
+			}
+		}
+		return result;
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private Set parseSet(String createdBeanName, List<Map<String, Object>> list) {
+		Set result = new HashSet<>();
+		for (Map<String, Object> map : list) {
+			Object val = parseValue(createdBeanName, map);
+			if (val != null) {
+				result.add(val);
+			}
+		}
+		return result;
+	}
+
+	private Object[] parseArray(String createdBeanName, List<Map<String, Object>> list) {
+		Object[] result = new Object[list.size()];
+		for (int i = 0; i < list.size(); i++) {
+			Map<String, Object> map = list.get(i);
+			Object val = parseValue(createdBeanName, map);
+			result[i] = val;
+		}
+		return result;
+	}
+
+	public abstract void addSingleton(String beanName, Object bean);
+
 	public abstract ApplicationContext getContext();
 
+	public abstract Map<String, BeanDefinition> getBeanDefinitions(Class<?> type);
 
+	public abstract String findBeanNameByType(Class<?> requiredType);
+
+	public abstract Collection<BeanDefinition> getBeanDefinitions();
 }

@@ -5,9 +5,7 @@ import java.lang.reflect.Modifier;
 
 import com.bc.simple.bean.common.util.BeanUtils;
 
-/**
- * Class representing injection information about an annotated method.
- */
+
 public class LifecycleElement {
 
 	private String lifecycleType;

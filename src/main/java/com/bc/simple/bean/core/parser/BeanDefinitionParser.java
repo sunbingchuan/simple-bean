@@ -1,8 +1,8 @@
 package com.bc.simple.bean.core.parser;
 
+import static com.bc.simple.bean.common.util.Constant.ANY_VALUE;
 import static com.bc.simple.bean.common.util.Constant.ATTRIBUTE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_ABSTRACT;
-import static com.bc.simple.bean.common.util.Constant.ATTR_AUTOWIRE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_AUTOWIRE_CANDIDATE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_BEAN;
 import static com.bc.simple.bean.common.util.Constant.ATTR_CLASS;
@@ -27,14 +27,14 @@ import static com.bc.simple.bean.common.util.Constant.ATTR_LAZY_INIT;
 import static com.bc.simple.bean.common.util.Constant.ATTR_MATCH;
 import static com.bc.simple.bean.common.util.Constant.ATTR_MERGE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_NAME;
+import static com.bc.simple.bean.common.util.Constant.ATTR_NODE_TYPE;
+import static com.bc.simple.bean.common.util.Constant.ATTR_ORDER;
 import static com.bc.simple.bean.common.util.Constant.ATTR_OVERRIDE_TYPE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_PARENT;
 import static com.bc.simple.bean.common.util.Constant.ATTR_PRIMARY;
-import static com.bc.simple.bean.common.util.Constant.ATTR_PROPERTY_TYPE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_REF;
 import static com.bc.simple.bean.common.util.Constant.ATTR_REF_TYPE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_REPLACER;
-import static com.bc.simple.bean.common.util.Constant.ATTR_ROOT;
 import static com.bc.simple.bean.common.util.Constant.ATTR_SCOPE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_TYPE;
 import static com.bc.simple.bean.common.util.Constant.ATTR_VALUE;
@@ -55,7 +55,6 @@ import static com.bc.simple.bean.common.util.Constant.DOC_LIST;
 import static com.bc.simple.bean.common.util.Constant.DOC_LOOKUP_METHOD;
 import static com.bc.simple.bean.common.util.Constant.DOC_MAP;
 import static com.bc.simple.bean.common.util.Constant.DOC_META;
-import static com.bc.simple.bean.common.util.Constant.DOC_NULL;
 import static com.bc.simple.bean.common.util.Constant.DOC_PROP;
 import static com.bc.simple.bean.common.util.Constant.DOC_PROPERTY;
 import static com.bc.simple.bean.common.util.Constant.DOC_PROPS;
@@ -65,11 +64,18 @@ import static com.bc.simple.bean.common.util.Constant.DOC_SET;
 import static com.bc.simple.bean.common.util.Constant.DOC_VALUE;
 import static com.bc.simple.bean.common.util.Constant.FALSE_VALUE;
 import static com.bc.simple.bean.common.util.Constant.MULTI_VALUE_ATTRIBUTE_DELIMITERS;
-import static com.bc.simple.bean.common.util.Constant.OVERRIDE_TYPE_INIT_VALUE;
+import static com.bc.simple.bean.common.util.Constant.OVERRIDE_TYPE_LOOKUP_VALUE;
 import static com.bc.simple.bean.common.util.Constant.OVERRIDE_TYPE_REPLACE_VALUE;
+import static com.bc.simple.bean.common.util.Constant.PATTERN_ANY;
 import static com.bc.simple.bean.common.util.Constant.TRUE_VALUE;
+import static com.bc.simple.bean.common.util.Constant.TYPE_ARRAY_VALUE;
+import static com.bc.simple.bean.common.util.Constant.TYPE_BEAN_VALUE;
+import static com.bc.simple.bean.common.util.Constant.TYPE_LIST_VALUE;
+import static com.bc.simple.bean.common.util.Constant.TYPE_MAP_VALUE;
+import static com.bc.simple.bean.common.util.Constant.TYPE_META_VALUE;
+import static com.bc.simple.bean.common.util.Constant.TYPE_PROPS_VALUE;
 import static com.bc.simple.bean.common.util.Constant.TYPE_REF_VALUE;
-import static com.bc.simple.bean.common.util.Constant.TYPE_STRING_VALUE;
+import static com.bc.simple.bean.common.util.Constant.TYPE_SET_VALUE;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -92,71 +98,46 @@ import com.bc.simple.bean.common.util.DomUtils;
 import com.bc.simple.bean.common.util.ObjectUtils;
 import com.bc.simple.bean.common.util.StringUtils;
 import com.bc.simple.bean.core.handler.HandlerProxy;
-import com.bc.simple.bean.core.support.CurrencyException;
-import com.bc.simple.bean.core.support.AnnotationMetaData.SimpleAnnotationVisitor;
+import com.bc.simple.bean.core.support.SimpleException;
 
-/**
- * Stateful delegate class used to parse XML bean definitions. Intended for use
- * by both the main parser and any extension {@link BeanDefinitionParser
- * BeanDefinitionParsers} or {@link BeanDefinitionDecorator
- * BeanDefinitionDecorators}.
- *
- * @since 2.0
- * @see ParserContext
- * @see DefaultBeanDefinitionDocumentReader
- */
-@SuppressWarnings({ "unchecked", "rawtypes" })
+
+@SuppressWarnings({"unchecked", "rawtypes"})
 public class BeanDefinitionParser {
 
-	private Log log = LogFactory.getLog(SimpleAnnotationVisitor.class);
+	private Log log = LogFactory.getLog(BeanDefinitionParser.class);
 
 	private final BeanFactory beanFactory;
 
 	private final Node root;
 
-	/**
-	 * Stores all used bean names so we can enforce uniqueness on a per beans-Node
-	 * basis. Duplicate bean ids/names may not exist within the same level of beans
-	 * Node nesting, but may be duplicated across levels.
-	 */
+
 	private final Set<String> usedNames = new HashSet<>();
 
 	private final HandlerProxy handler;
 
-	/**
-	 * Create a new BeanDefinitionParserDelegate associated with the supplied
-	 * {@link XmlReaderContext}.
-	 */
+
 	public BeanDefinitionParser(BeanFactory beanFactory, Node root) {
 		this.beanFactory = beanFactory;
 		this.handler = new HandlerProxy(beanFactory);
 		this.root = root;
 	}
 
-	/**
-	 * Parses the supplied {@code <bean>} Node. May return {@code null} if there
-	 * were errors during parse. Errors are reported to the
-	 * {@link org.Factory.beans.factory.parsing.ProblemReporter}.
-	 */
+
 
 	public BeanDefinition parseBeanDefinitionNode(Node ele) {
 		return parseBeanDefinitionNode(ele, null);
 	}
 
-	/**
-	 * Parses the supplied {@code <bean>} Node. May return {@code null} if there
-	 * were errors during parse. Errors are reported to the
-	 * {@link org.Factory.beans.factory.parsing.ProblemReporter}.
-	 */
 
-	public BeanDefinition parseBeanDefinitionNode(Node ele, BeanDefinition containingBean) {
+
+	protected BeanDefinition parseBeanDefinitionNode(Node ele, BeanDefinition containingBean) {
 		String id = ele.attrString(ATTR_ID);
 		String nameAttr = ele.attrString(ATTR_NAME);
 
 		List<String> aliases = new ArrayList<>();
 		if (StringUtils.hasLength(nameAttr)) {
-			String[] nameArr = StringUtils.tokenizeToStringArray(nameAttr, MULTI_VALUE_ATTRIBUTE_DELIMITERS, true,
-					true);
+			String[] nameArr =
+					StringUtils.tokenizeToStringArray(nameAttr, MULTI_VALUE_ATTRIBUTE_DELIMITERS, true, true);
 			aliases.addAll(Arrays.asList(nameArr));
 		}
 
@@ -188,16 +169,14 @@ public class BeanDefinitionParser {
 			}
 			String[] aliasesArray = aliases.toArray(new String[aliases.size()]);
 			beanDefinition.setAliases(aliasesArray);
+			beanFactory.registerAliases(beanName, aliasesArray);
 			beanDefinition.setBeanName(beanName);
 			return beanDefinition;
 		}
 		return null;
 	}
 
-	/**
-	 * Validate that the specified bean name and aliases have not been used already
-	 * within the current level of beans Node nesting.
-	 */
+
 	protected void checkNameUniqueness(String beanName, List<String> aliases, Node beanNode) {
 		String foundName = null;
 
@@ -208,19 +187,15 @@ public class BeanDefinitionParser {
 			foundName = ObjectUtils.findFirstMatch(this.usedNames, aliases);
 		}
 		if (foundName != null) {
-			throw new CurrencyException("Bean name '" + foundName + "' is already used in this <beans> Node", beanNode);
+			throw new SimpleException("Bean name '" + foundName + "' is already used in Node " + beanNode + "!");
 		}
 		this.usedNames.add(beanName);
 		this.usedNames.addAll(aliases);
 	}
 
-	/**
-	 * Parse the bean definition itself, without regard to name or aliases. May
-	 * return {@code null} if problems occurred during the parsing of the bean
-	 * definition.
-	 */
 
-	public BeanDefinition parseBeanDefinitionNode(Node ele, String beanName, BeanDefinition containingBean) {
+
+	protected BeanDefinition parseBeanDefinitionNode(Node ele, String beanName, BeanDefinition containingBean) {
 		String className = null;
 		if (ele.hasAttr(ATTR_CLASS)) {
 			className = ele.attrString(ATTR_CLASS).trim();
@@ -230,30 +205,30 @@ public class BeanDefinitionParser {
 			parseBeanDefinitionAttributes(ele, beanName, containingBean, bd);
 			bd.setDescription(DomUtils.getChildElementValueByTagName(ele, DOC_DESCRIPTION));
 			parseMetaNodes(ele, bd);
-			parseLookupOverrideSubNodes(ele, bd.getMethodOverrides());
-			parseReplacedMethodSubNodes(ele, bd.getMethodOverrides());
+			parseLookupOverrideSubNodes(ele, bd.getOverrideMethodDefinitions());
+			parseReplacedMethodSubNodes(ele, bd.getOverrideMethodDefinitions());
 			parseConstructorArgNodes(ele, bd);
 			parsePropertyNodes(ele, bd);
 			bd.setRoot(this.root);
 			return bd;
 		} catch (ClassNotFoundException ex) {
-			throw new CurrencyException("Bean class [" + className + "] not found", ex);
+			throw new SimpleException("Bean class [" + className + "] not found!", ex);
 		} catch (NoClassDefFoundError err) {
-			throw new CurrencyException("Class that bean class [" + className + "] depends on not found", err);
+			throw new SimpleException("Class which bean class [" + className + "] depends on not found!", err);
 		} catch (Throwable ex) {
-			throw new CurrencyException("Unexpected failure during bean definition parsing", ex);
+			throw new SimpleException("Error during bean definition parsing", ex);
 		}
 	}
 
 	/**
 	 * Apply the attributes of the given bean Node to the given bean * definition.
 	 * 
-	 * @param ele            bean declaration Node
-	 * @param beanName       bean name
+	 * @param ele bean declaration Node
+	 * @param beanName bean name
 	 * @param containingBean containing bean definition
 	 * @return a bean definition initialized according to the bean Node attributes
 	 */
-	public BeanDefinition parseBeanDefinitionAttributes(Node ele, String beanName, BeanDefinition containingBean,
+	protected BeanDefinition parseBeanDefinitionAttributes(Node ele, String beanName, BeanDefinition containingBean,
 			BeanDefinition bd) {
 
 		if (ele.hasAttr(ATTR_SCOPE)) {
@@ -277,9 +252,6 @@ public class BeanDefinitionParser {
 		}
 		bd.setLazyInit(TRUE_VALUE.equals(lazyInit));
 
-		String autowire = ele.attrString(ATTR_AUTOWIRE);
-		bd.setAutowireMode(getAutowireMode(autowire));
-
 		if (ele.hasAttr(ATTR_DEPENDS_ON)) {
 			String dependsOn = ele.attrString(ATTR_DEPENDS_ON);
 			bd.setDependsOn(StringUtils.splitByStr(dependsOn, MULTI_VALUE_ATTRIBUTE_DELIMITERS));
@@ -299,8 +271,14 @@ public class BeanDefinitionParser {
 		}
 
 		if (ele.hasAttr(ATTR_PRIMARY)) {
+			Integer order = StringUtils.switchInteger(ele.attr(ATTR_PRIMARY));
+			bd.setBeanOrder(order);
+		}
+
+		if (ele.hasAttr(ATTR_ORDER)) {
 			bd.setPrimary(TRUE_VALUE.equals(ele.attrString(ATTR_PRIMARY)));
 		}
+
 
 		if (ele.hasAttr(ATTR_INIT_METHOD)) {
 			String initMethodName = ele.attrString(ATTR_INIT_METHOD);
@@ -333,22 +311,14 @@ public class BeanDefinitionParser {
 		return bd;
 	}
 
-	/**
-	 * Create a bean definition for the given class name and parent name.
-	 * 
-	 * @param className  the name of the bean class
-	 * @param parentName the name of the bean's parent bean
-	 * @return the newly created bean definition
-	 * @throws ClassNotFoundException if bean class resolution was attempted but
-	 *                                failed
-	 */
+
 	protected BeanDefinition createBeanDefinition(String className) throws ClassNotFoundException {
 		return BeanUtils.createBeanDefinition(className, beanFactory.getBeanClassLoader());
 	}
 
-	public void parseMetaNodes(Node ele, BeanDefinition bd) {
+	protected void parseMetaNodes(Node ele, BeanDefinition bd) {
 		if (bd == null) {
-			throw new CurrencyException("BeanDefinition can not be null");
+			throw new SimpleException("BeanDefinition can not be null!");
 		}
 		List<Node> nl = ele.getChilds();
 		for (Node node : nl) {
@@ -361,9 +331,9 @@ public class BeanDefinitionParser {
 		}
 	}
 
-	public void parseMetaNodes(Node ele, Object target) {
+	protected void parseMetaNodes(Node ele, Object target) {
 		if (target == null) {
-			throw new CurrencyException("target obj can not be null");
+			throw new SimpleException("target obj can not be null!");
 		}
 		if (target instanceof Map) {
 			Map map = (Map) target;
@@ -373,9 +343,10 @@ public class BeanDefinitionParser {
 					Node metaNode = node;
 					String key = metaNode.attrString(ATTR_KEY);
 					String value = metaNode.attrString(ATTR_VALUE);
-					Map attribute = new HashMap<>();
+					Map attribute = new HashMap<>(3);
 					attribute.put(ATTR_KEY, key);
 					attribute.put(ATTR_VALUE, value);
+					attribute.put(ATTR_TYPE, TYPE_META_VALUE);
 					map.put(ATTRIBUTE, attribute);
 				}
 			}
@@ -383,7 +354,7 @@ public class BeanDefinitionParser {
 
 	}
 
-	public int getAutowireMode(String attValue) {
+	protected int getAutowireMode(String attValue) {
 		String att = attValue;
 		if (StringUtils.isEmpty(att)) {
 			att = this.root.attrString(ATTR_DEFAULT_AUTOWIRE);
@@ -397,10 +368,8 @@ public class BeanDefinitionParser {
 		return autowire;
 	}
 
-	/**
-	 * Parse constructor-arg sub-Nodes of the given bean Node.
-	 */
-	public void parseConstructorArgNodes(Node beanEle, BeanDefinition bd) {
+
+	protected void parseConstructorArgNodes(Node beanEle, BeanDefinition bd) {
 		List<Node> nl = beanEle.getChilds();
 		for (Node node : nl) {
 			if (nodeNameEquals(node, DOC_CONSTRUCTOR_ARG)) {
@@ -409,10 +378,8 @@ public class BeanDefinitionParser {
 		}
 	}
 
-	/**
-	 * Parse property sub-Nodes of the given bean Node.
-	 */
-	public void parsePropertyNodes(Node beanEle, BeanDefinition bd) {
+
+	protected void parsePropertyNodes(Node beanEle, BeanDefinition bd) {
 		List<Node> nl = beanEle.getChilds();
 		for (Node node : nl) {
 			if (nodeNameEquals(node, DOC_PROPERTY)) {
@@ -421,60 +388,65 @@ public class BeanDefinitionParser {
 		}
 	}
 
-	/**
-	 * Parse lookup-override sub-Nodes of the given bean Node.
-	 */
-	public void parseLookupOverrideSubNodes(Node beanEle, Set<Map<String, Object>> overrides) {
+
+	protected void parseLookupOverrideSubNodes(Node beanEle, Set<Map<String, Object>> overrides) {
 		List<Node> nl = beanEle.getChilds();
 		for (Node node : nl) {
 			if (nodeNameEquals(node, DOC_LOOKUP_METHOD)) {
 				Node ele = node;
 				String methodName = ele.attrString(ATTR_NAME);
 				String beanRef = ele.attrString(ATTR_BEAN);
-				Map override = new HashMap<String, Object>(1);
+				Map override = new HashMap<String, Object>(3);
 				override.put(ATTR_NAME, methodName);
 				override.put(ATTR_BEAN, beanRef);
-				override.put(ATTR_ROOT, this.root);
-				override.put(ATTR_OVERRIDE_TYPE, OVERRIDE_TYPE_INIT_VALUE);
+				override.put(ATTR_OVERRIDE_TYPE, OVERRIDE_TYPE_LOOKUP_VALUE);
 				overrides.add(override);
 			}
 		}
 	}
 
-	/**
-	 * Parse replaced-method sub-Nodes of the given bean Node.
-	 */
-	public void parseReplacedMethodSubNodes(Node beanEle, Set<Map<String, Object>> overrides) {
+
+	protected void parseReplacedMethodSubNodes(Node beanEle, Set<Map<String, Object>> overrides) {
 		List<Node> nl = beanEle.getChilds();
 		for (Node node : nl) {
 			if (nodeNameEquals(node, DOC_REPLACED_METHOD)) {
 				Node replacedMethodEle = node;
 				String name = replacedMethodEle.attrString(ATTR_NAME);
-				List<Node> argTypes = replacedMethodEle.getChilds();
+				List<Node> nodes = replacedMethodEle.getChilds();
 				List<Class<?>> types = new ArrayList<>();
-				for (int j = 0; j < argTypes.size(); j++) {
-					Node supNode = argTypes.get(j);
-					Node argType = supNode;
-					Class type = BeanUtils.forName(argType.attrString(ATTR_MATCH), null);
-					types.add(type);
+				boolean anyArgType = false;
+				for (int j = 0; j < nodes.size(); j++) {
+					Node n = nodes.get(j);
+					if (n.getName().equals(DOC_ARG_TYPE)) {
+						String match = n.attrString(ATTR_MATCH);
+						if (StringUtils.isEmpty(match)) {
+							continue;
+						} else if (PATTERN_ANY.equals(match.trim())) {
+							anyArgType = true;
+							break;
+						} else {
+							Class type = BeanUtils.forName(match, null);
+							types.add(type);
+						}
+					}
 				}
 				String callback = replacedMethodEle.attrString(ATTR_REPLACER);
 				Map override = new HashMap<String, Object>(1);
 				override.put(ATTR_NAME, name);
 				override.put(ATTR_REPLACER, callback);
-				override.put(ATTR_ROOT, this.root);
 				override.put(ATTR_OVERRIDE_TYPE, OVERRIDE_TYPE_REPLACE_VALUE);
-				override.put(DOC_ARG_TYPE, types);
-				// Look for arg-type match Nodes.
+				if (anyArgType) {
+					override.put(DOC_ARG_TYPE, ANY_VALUE);
+				} else {
+					override.put(DOC_ARG_TYPE, types);
+				}
 				overrides.add(override);
 			}
 		}
 	}
 
-	/**
-	 * Parse a constructor-arg Node.
-	 */
-	public void parseConstructorArgNode(Node ele, BeanDefinition bd) {
+
+	protected void parseConstructorArgNode(Node ele, BeanDefinition bd) {
 		String indexAttr = ele.attrString(ATTR_INDEX);
 		String typeAttr = ele.attrString(ATTR_TYPE);
 		String nameAttr = ele.attrString(ATTR_NAME);
@@ -482,20 +454,17 @@ public class BeanDefinitionParser {
 			try {
 				int index = Integer.parseInt(indexAttr);
 				if (index < 0) {
-					log.info("'index' cannot be lower than 0" + ele);
+					throw new SimpleException("'index' cannot be lower than 0 of node " + ele + "!");
 				} else {
-					Object value = parsePropertyValue(ele, bd, null);
-					Map map = new HashMap<>();
-					map.put(ATTR_VALUE, value);
+					Map map = parsePropertyValue(ele, bd, null);
 					if (StringUtils.hasLength(typeAttr)) {
 						map.put(ATTR_TYPE, typeAttr);
 					}
 					if (StringUtils.hasLength(nameAttr)) {
 						map.put(ATTR_NAME, nameAttr);
 					}
-					map.put(ATTR_ROOT, this.root);
 					if (bd.getConstructorArgumentValues().containsKey(index)) {
-						log.info("Ambiguous constructor-arg entries for index " + index + ele);
+						throw new SimpleException("Ambiguous constructor-arg entries for index " + index + " " + ele);
 					} else {
 						bd.getConstructorArgumentValues().put(index, map);
 					}
@@ -504,45 +473,38 @@ public class BeanDefinitionParser {
 				log.info("Attribute 'index' of tag 'constructor-arg' must be an integer" + ele);
 			}
 		} else {
-			Object value = parsePropertyValue(ele, bd, null);
-			Map<String, Object> map = new HashMap<>();
-			map.put(ATTR_VALUE, value);
+			Map map = parsePropertyValue(ele, bd, null);
 			if (StringUtils.hasLength(typeAttr)) {
 				map.put(ATTR_TYPE, typeAttr);
 			}
 			if (StringUtils.hasLength(nameAttr)) {
 				map.put(ATTR_NAME, nameAttr);
 			}
-			map.put(ATTR_ROOT, this.root);
 			int index = ObjectUtils.generateId(bd.getConstructorArgumentValues());
 			bd.getConstructorArgumentValues().put(index, map);
 		}
 	}
 
-	/**
-	 * Parse a property Node.
-	 */
-	public void parsePropertyNode(Node ele, BeanDefinition bd) {
+
+	protected void parsePropertyNode(Node ele, BeanDefinition bd) {
 		String propertyName = ele.attrString(ATTR_NAME);
 		if (!StringUtils.hasLength(propertyName)) {
 			log.info("Tag 'property' must have a 'name' attribute " + ele);
 			return;
 		}
-		Object val = parsePropertyValue(ele, bd, propertyName);
-		Map prop = new HashMap<>();
-		prop.put(ATTR_NAME, propertyName);
-		prop.put(ATTR_VALUE, val);
-		parseMetaNodes(ele, prop);
-		prop.put(ATTR_ROOT, this.root);
-		bd.getPropertyValues().add(prop);
+		Map map = parsePropertyValue(ele, bd, propertyName);
+		String type = ele.attrString(ATTR_TYPE);
+		if (StringUtils.hasLength(type)) {
+			map.put(ATTR_TYPE, type);
+		}
+		map.put(ATTR_NAME, propertyName);
+		parseMetaNodes(ele, map);
+		bd.getPropertyValues().add(map);
 	}
 
-	/**
-	 * Get the value of a property Node. May be a list etc. Also used for
-	 * constructor arguments, "propertyName" being null in this case.
-	 */
 
-	public Object parsePropertyValue(Node ele, BeanDefinition bd, String propertyName) {
+
+	protected Map parsePropertyValue(Node ele, BeanDefinition bd, String propertyName) {
 		String NodeName = (propertyName != null ? "<property> Node for property '" + propertyName + "'"
 				: "<constructor-arg> Node");
 
@@ -559,14 +521,11 @@ public class BeanDefinitionParser {
 				}
 			}
 		}
-
 		boolean hasRefAttribute = ele.hasAttr(ATTR_REF);
 		boolean hasValueAttribute = ele.hasAttr(ATTR_VALUE);
 		if ((hasRefAttribute && hasValueAttribute) || ((hasRefAttribute || hasValueAttribute) && subNode != null)) {
-			log.info(
-					NodeName + " is only allowed to contain either 'ref' attribute OR 'value' attribute OR sub-Node "
-							+
-					ele);
+			log.info(NodeName + " is only allowed to contain either 'ref' attribute OR 'value' attribute OR sub-Node "
+					+ ele);
 		}
 
 		if (hasRefAttribute) {
@@ -576,47 +535,37 @@ public class BeanDefinitionParser {
 				log.info(NodeName + " contains empty 'ref' attribute " + ele);
 			}
 			Map ref = new HashMap<String, Object>(3);
-			ref.put(ATTR_PROPERTY_TYPE, TYPE_REF_VALUE);
+			ref.put(ATTR_TYPE, TYPE_REF_VALUE);
 			ref.put(ATTR_REF, refName);
 			ref.put(ATTR_REF_TYPE, refTypeName);
-			ref.put(ATTR_ROOT, this.root);
 			return ref;
 		} else if (hasValueAttribute) {
 			String value = ele.attrString(ATTR_VALUE);
-			Map prop = new HashMap<String, Object>(3);
-			prop.put(ATTR_PROPERTY_TYPE, TYPE_STRING_VALUE);
+			Map prop = new HashMap<String, Object>(2);
 			prop.put(ATTR_VALUE, value);
-			prop.put(ATTR_ROOT, this.root);
 			return prop;
 		} else if (subNode != null) {
 			return parsePropertySubNode(subNode, bd);
 		} else {
 			// Neither child Node nor "ref" or "value" attribute found.
-			log.info(NodeName + " must specify a ref or value " + ele);
+			log.error(NodeName + " must specify a ref or value ");
 			return null;
 		}
 	}
 
-	public Object parsePropertySubNode(Node ele, BeanDefinition bd) {
+	protected Map parsePropertySubNode(Node ele, BeanDefinition bd) {
 		return parsePropertySubNode(ele, bd, null);
 	}
 
-	/**
-	 * Parse a value, ref or collection sub-Node of a property or constructor-arg
-	 * Node.
-	 * 
-	 * @param ele              subNode of property Node; we don't know which yet
-	 * @param defaultValueType the default type (class name) for any {@code <value>}
-	 *                         tag that might be created
-	 */
 
-	public Object parsePropertySubNode(Node ele, BeanDefinition bd, String defaultValueType) {
+
+	protected Map parsePropertySubNode(Node ele, BeanDefinition bd, String defaultValueType) {
 		if (nodeNameEquals(ele, DOC_BEAN)) {
 			BeanDefinition nestedBd = parseBeanDefinitionNode(ele, bd);
-			if (nestedBd != null) {
-				nestedBd = decorateBeanDefinitionIfRequired(ele, nestedBd);
-			}
-			return nestedBd;
+			Map map = new HashMap<String, Object>(2);
+			map.put(ATTR_TYPE, TYPE_BEAN_VALUE);
+			map.put(ATTR_VALUE, nestedBd);
+			return map;
 		} else if (nodeNameEquals(ele, DOC_REF)) {
 			// A generic reference to any name of any bean.
 			String refName = ele.attrString(ATTR_BEAN);
@@ -628,22 +577,14 @@ public class BeanDefinitionParser {
 					return null;
 				}
 			}
-			if (!StringUtils.hasText(refName)) {
-				log.info("<ref> Node contains empty target attribute " + ele);
-				return null;
-			}
 			Map ref = new HashMap<>(3);
 			ref.put(ATTR_REF, refName);
-			ref.put(ATTR_ROOT, this.root);
+			ref.put(ATTR_TYPE, TYPE_REF_VALUE);
 			return ref;
 		} else if (nodeNameEquals(ele, DOC_IDREF)) {
 			return parseIdRefNode(ele);
 		} else if (nodeNameEquals(ele, DOC_VALUE)) {
 			return parseValueNode(ele, defaultValueType);
-		} else if (nodeNameEquals(ele, DOC_NULL)) {
-			// It's a distinguished null value. Let's wrap it in a TypedStringValue
-			// object in order to preserve the source location.
-			return null;
 		} else if (nodeNameEquals(ele, DOC_ARRAY)) {
 			return parseArrayNode(ele, bd);
 		} else if (nodeNameEquals(ele, DOC_LIST)) {
@@ -653,17 +594,15 @@ public class BeanDefinitionParser {
 		} else if (nodeNameEquals(ele, DOC_MAP)) {
 			return parseMapNode(ele, bd);
 		} else if (nodeNameEquals(ele, DOC_PROPS)) {
-			return parsePropsNode(ele);
+			return parsePropsNode(ele, bd);
 		} else {
 			return parseNestedCustomNode(ele, bd);
 		}
 	}
 
-	/**
-	 * Return a typed String value Object for the given 'idref' Node.
-	 */
 
-	public Object parseIdRefNode(Node ele) {
+
+	protected Map parseIdRefNode(Node ele) {
 		// A generic reference to any name of any bean.
 		String refName = ele.attrString(ATTR_BEAN);
 		if (!StringUtils.hasLength(refName)) {
@@ -676,58 +615,54 @@ public class BeanDefinitionParser {
 		}
 		Map ref = new HashMap<>(2);
 		ref.put(ATTR_NAME, refName);
-		ref.put(ATTR_ROOT, this.root);
+		ref.put(ATTR_TYPE, TYPE_REF_VALUE);
 		return ref;
 	}
 
-	/**
-	 * Return a typed String value Object for the given value Node.
-	 */
-	public Object parseValueNode(Node ele, String defaultTypeName) {
+
+	protected Map parseValueNode(Node ele, String defaultTypeName) {
 		// It's a literal value.
 		String value = DomUtils.getTextValue(ele);
+		if (!StringUtils.hasText(value)) {
+			value = ele.attrString(ATTR_VALUE);
+		}
 		String specifiedTypeName = ele.attrString(ATTR_TYPE);
 		String typeName = specifiedTypeName;
 		if (!StringUtils.hasText(typeName)) {
 			typeName = defaultTypeName;
 		}
 		Map map = new HashMap<>(2);
-		map.put(typeName, value);
-		map.put(ATTR_ROOT, this.root);
+		map.put(ATTR_TYPE, specifiedTypeName);
+		map.put(ATTR_VALUE, value);
 		return map;
 	}
 
-	/**
-	 * Parse an array Node.
-	 */
-	public List<Object> parseArrayNode(Node arrayEle, BeanDefinition bd) {
-		String NodeType = arrayEle.attrString(ATTR_VALUE_TYPE);
+
+	protected Map parseArrayNode(Node arrayEle, BeanDefinition bd) {
+		String nodeType = arrayEle.attrString(ATTR_NODE_TYPE);
 		List<Node> nl = arrayEle.getChilds();
 		List target = new ArrayList<>(nl.size());
-		Map attribute = new HashMap<>(3);
-		attribute.put(ATTR_ROOT, this.root);
-		attribute.put(ATTR_TYPE, NodeType);
-		attribute.put(ATTR_MERGE, parseMergeAttribute(arrayEle));
-		target.add(attribute);
-		parseCollectionNodes(nl, target, bd, NodeType);
-		return target;
+		Map map = new HashMap<>(4);
+		map.put(ATTR_NODE_TYPE, nodeType);
+		map.put(ATTR_MERGE, parseMergeAttribute(arrayEle));
+		map.put(ATTR_TYPE, TYPE_ARRAY_VALUE);
+		map.put(ATTR_VALUE, target);
+		parseCollectionNodes(nl, target, bd, nodeType);
+		return map;
 	}
 
-	/**
-	 * Parse a list Node.
-	 */
-	public List<Object> parseListNode(Node collectionEle, BeanDefinition bd) {
-		return parseArrayNode(collectionEle, bd);
+
+	protected Map parseListNode(Node collectionEle, BeanDefinition bd) {
+		Map map = parseArrayNode(collectionEle, bd);
+		map.put(ATTR_TYPE, TYPE_LIST_VALUE);
+		return map;
 	}
 
-	/**
-	 * Parse a set Node.
-	 */
-	public Set<Object> parseSetNode(Node collectionEle, BeanDefinition bd) {
-		List<Object> list = parseListNode(collectionEle, bd);
-		Set set = new HashSet<>();
-		set.addAll(list);
-		return set;
+
+	protected Map parseSetNode(Node arrayEle, BeanDefinition bd) {
+		Map map = parseArrayNode(arrayEle, bd);
+		map.put(ATTR_TYPE, TYPE_SET_VALUE);
+		return map;
 	}
 
 	protected void parseCollectionNodes(List<Node> nodes, Collection<Object> target, BeanDefinition bd,
@@ -740,22 +675,28 @@ public class BeanDefinitionParser {
 		}
 	}
 
-	/**
-	 * Parse a map Node.
-	 */
-	public Map<Object, Object> parseMapNode(Node mapEle, BeanDefinition bd) {
-		String defaultKeyType = mapEle.attrString(ATTR_KEY_TYPE);
-		String defaultValueType = mapEle.attrString(ATTR_VALUE_TYPE);
-		List<Node> entryEles = DomUtils.getChildElementsByTagName(mapEle, DOC_ENTRY);
-		Map<Object, Object> map = new HashMap<>(entryEles.size());
-		map.put(ATTR_ROOT, this.root);
-		map.put(ATTR_KEY_TYPE, defaultKeyType);
-		map.put(ATTR_VALUE_TYPE, defaultValueType);
-		map.put(ATTR_MERGE, parseMergeAttribute(mapEle));
 
+	protected Map<String, Object> parseMapNode(Node mapEle, BeanDefinition bd) {
+		Map<String, Object> result = parsePairs(mapEle, bd, DOC_ENTRY);
+		result.put(ATTR_TYPE, TYPE_MAP_VALUE);
+		return result;
+	}
+
+	protected Map<String, Object> parsePairs(Node ele, BeanDefinition bd, String unitName) {
+
+		String defaultKeyType = ele.attrString(ATTR_KEY_TYPE);
+		String defaultValueType = ele.attrString(ATTR_VALUE_TYPE);
+		List<Node> entryEles = DomUtils.getChildElementsByTagName(ele, unitName);
+		List<Map<String, Object>> defines = new ArrayList<>(entryEles.size());
+		Map<String, Object> result = new HashMap<>(4);
+		result.put(ATTR_KEY_TYPE, defaultKeyType);
+		result.put(ATTR_VALUE_TYPE, defaultValueType);
+		result.put(ATTR_MERGE, parseMergeAttribute(ele));
+		result.put(ATTR_VALUE, defines);
 		for (Node entryEle : entryEles) {
 			// Should only have one value child Node: ref, value, list, etc.
 			// Optionally, there might be a key child Node.
+			Map<String, Object> map = new HashMap<>();
 			List<Node> entrySubNodes = entryEle.getChilds();
 			Node keyEle = null;
 			Node valueEle = null;
@@ -763,7 +704,7 @@ public class BeanDefinitionParser {
 				Node candidateEle = node;
 				if (nodeNameEquals(candidateEle, DOC_KEY)) {
 					if (keyEle != null) {
-						log.info("<entry> Node is only allowed to contain one <key> sub-Node " + entryEle);
+						log.info(unitName + " Node is only allowed to contain one <key> sub-Node " + entryEle);
 					} else {
 						keyEle = candidateEle;
 					}
@@ -772,7 +713,7 @@ public class BeanDefinitionParser {
 					if (nodeNameEquals(candidateEle, DOC_DESCRIPTION)) {
 						// the Node is a <description> -> ignore it
 					} else if (valueEle != null) {
-						log.info("<entry> Node must not contain more than one value sub-Node " + entryEle);
+						log.info(unitName + " Node must not contain more than one value sub-Node " + entryEle);
 					} else {
 						valueEle = candidateEle;
 					}
@@ -784,24 +725,25 @@ public class BeanDefinitionParser {
 			boolean hasKeyAttribute = entryEle.hasAttr(ATTR_KEY);
 			boolean hasKeyRefAttribute = entryEle.hasAttr(ATTR_KEY_REF);
 			if ((hasKeyAttribute && hasKeyRefAttribute) || (hasKeyAttribute || hasKeyRefAttribute) && keyEle != null) {
-				log.info("<entry> Node is only allowed to contain either "
+				log.info(unitName + " Node is only allowed to contain either "
 						+ "a 'key' attribute OR a 'key-ref' attribute OR a <key> sub-Node " + entryEle);
 			}
 			if (hasKeyAttribute) {
-				key = buildTypedStringValueForMap(entryEle.attrString(ATTR_KEY), defaultKeyType, entryEle);
+				key = buildTypedStringValueForMap(entryEle.attrString(ATTR_KEY), entryEle.attrString(ATTR_KEY_TYPE),
+						defaultKeyType, entryEle);
 			} else if (hasKeyRefAttribute) {
 				String refName = entryEle.attrString(ATTR_KEY_REF);
 				if (!StringUtils.hasText(refName)) {
-					log.info("<entry> Node contains empty 'key-ref' attribute " + entryEle);
+					log.info(unitName + " Node contains empty 'key-ref' attribute " + entryEle);
 				}
-				Map ref = new HashMap<>();
-				map.put(ATTR_NAME, refName);
-				map.put(ATTR_ROOT, this.root);
+				Map ref = new HashMap<>(2);
+				map.put(ATTR_VALUE, refName);
+				map.put(ATTR_TYPE, TYPE_REF_VALUE);
 				key = ref;
 			} else if (keyEle != null) {
 				key = parseKeyNode(keyEle, bd, defaultKeyType);
 			} else {
-				log.info("<entry> Node must specify a key " + entryEle);
+				log.info(unitName + " Node must specify a key " + entryEle);
 			}
 
 			// Extract value from attribute or sub-Node.
@@ -811,57 +753,54 @@ public class BeanDefinitionParser {
 			boolean hasValueTypeAttribute = entryEle.hasAttr(ATTR_VALUE_TYPE);
 			if ((hasValueAttribute && hasValueRefAttribute)
 					|| (hasValueAttribute || hasValueRefAttribute) && valueEle != null) {
-				log.info("<entry> Node is only allowed to contain either "
+				log.info(unitName + " Node is only allowed to contain either "
 						+ "'value' attribute OR 'value-ref' attribute OR <value> sub-Node " + entryEle);
 			}
 			if ((hasValueTypeAttribute && hasValueRefAttribute) || (hasValueTypeAttribute && !hasValueAttribute)
 					|| (hasValueTypeAttribute && valueEle != null)) {
-				log.info("<entry> Node is only allowed to contain a 'value-type' "
-						+ "attribute when it has a 'value' attribute " + entryEle);
+				log.info("conflict definition " + entryEle);
 			}
 			if (hasValueAttribute) {
-				String valueType = entryEle.attrString(ATTR_VALUE_TYPE);
-				if (!StringUtils.hasText(valueType)) {
-					valueType = defaultValueType;
-				}
-				value = buildTypedStringValueForMap(entryEle.attrString(ATTR_VALUE), valueType, entryEle);
+				value = buildTypedStringValueForMap(entryEle.attrString(ATTR_VALUE),
+						entryEle.attrString(ATTR_VALUE_TYPE), defaultValueType, entryEle);
 			} else if (hasValueRefAttribute) {
 				String refName = entryEle.attrString(ATTR_VALUE_REF);
 				if (!StringUtils.hasText(refName)) {
-					log.info("<entry> Node contains empty 'value-ref' attribute " + entryEle);
+					log.info(unitName + " Node contains empty 'value-ref' attribute " + entryEle);
 				}
 				Map ref = new HashMap<>();
 				map.put(ATTR_NAME, refName);
-				map.put(ATTR_ROOT, this.root);
+				map.put(ATTR_TYPE, TYPE_REF_VALUE);
 				value = ref;
 			} else if (valueEle != null) {
 				value = parsePropertySubNode(valueEle, bd, defaultValueType);
 			} else {
-				log.info("<entry> Node must specify a value " + entryEle);
+				log.info(unitName + " Node must specify a value " + entryEle);
 			}
 
 			// Add final key and value to the Map.
-			map.put(key, value);
+			map.put(ATTR_KEY, key);
+			map.put(ATTR_VALUE, value);
+			defines.add(map);
 		}
 
-		return map;
+		return result;
+
 	}
 
-	/**
-	 * Build a typed String value Object for the given raw value.
-	 * 
-	 * @see org.Factory.beans.factory.config.TypedStringValue
-	 */
-	protected final Object buildTypedStringValueForMap(String value, String defaultTypeName, Node entryEle) {
+
+	protected final Object buildTypedStringValueForMap(String value, String typeName, String defaultTypeName,
+			Node entryEle) {
 		Map typedValue = new HashMap<>(2);
-		typedValue.put(ATTR_TYPE, defaultTypeName);
+		if (StringUtils.isEmpty(typeName)) {
+			typeName = defaultTypeName;
+		}
+		typedValue.put(ATTR_TYPE, typeName);
 		typedValue.put(ATTR_VALUE, value);
 		return typedValue;
 	}
 
-	/**
-	 * Parse a key sub-Node of a map Node.
-	 */
+
 
 	protected Object parseKeyNode(Node keyEle, BeanDefinition bd, String defaultKeyTypeName) {
 		List<Node> nl = keyEle.getChilds();
@@ -880,29 +819,15 @@ public class BeanDefinitionParser {
 		return parsePropertySubNode(subNode, bd, defaultKeyTypeName);
 	}
 
-	/**
-	 * Parse a props Node.
-	 */
-	public Object parsePropsNode(Node propsEle) {
-		Map props = new HashMap<>();
-		props.put(ATTR_ROOT, this.root);
-		props.put(ATTR_MERGE, parseMergeAttribute(propsEle));
-		List<Node> propEles = DomUtils.getChildElementsByTagName(propsEle, DOC_PROP);
-		for (Node propEle : propEles) {
-			String key = propEle.attrString(ATTR_KEY);
-			// Trim the text value to avoid unwanted whitespace
-			// caused by typical XML formatting.
-			String value = DomUtils.getTextValue(propEle).trim();
-			props.put(key, value);
-		}
 
-		return props;
+	protected Map parsePropsNode(Node propsEle, BeanDefinition bd) {
+		Map<String, Object> result = parsePairs(propsEle, bd, DOC_PROP);
+		result.put(ATTR_TYPE, TYPE_PROPS_VALUE);
+		return result;
 	}
 
-	/**
-	 * Parse the merge attribute of a collection Node, if any.
-	 */
-	public boolean parseMergeAttribute(Node collectionNode) {
+
+	protected boolean parseMergeAttribute(Node collectionNode) {
 		String value = collectionNode.attrString(ATTR_MERGE);
 		if (DEFAULT_VALUE.equals(value)) {
 			String df = this.root.attrString(ATTR_DEFAULT_MERGE);
@@ -915,60 +840,31 @@ public class BeanDefinitionParser {
 		return TRUE_VALUE.equals(value);
 	}
 
-	public BeanDefinition parseCustomNode(Node ele) {
+	protected Map parseCustomNode(Node ele) {
 		return parseCustomNode(ele, null);
 	}
 
-	public BeanDefinition parseCustomNode(Node ele, BeanDefinition containingBd) {
-		return this.handler.parse(ele, containingBd, root);
+	protected Map parseCustomNode(Node ele, BeanDefinition containingBd) {
+		Object result = this.handler.parse(ele, containingBd, root);
+		Map map = new HashMap<>(2);
+		map.put(ATTR_TYPE, ele.attr(ATTR_TYPE));
+		map.put(ATTR_VALUE, result);
+		return map;
 	}
 
-	public BeanDefinition decorateBeanDefinitionIfRequired(Node ele, BeanDefinition bd) {
-		// Decorate based on custom attributes first.
-		Map<String, Object> attributes = ele.attrs();
-		BeanDefinition finalDefinition = bd;
-		HandlerProxy.decorate(attributes, finalDefinition, this.root);
-		// Decorate based on custom nested Nodes.
-		List<Node> childs = ele.getChilds();
-		for (Node node : childs) {
-			HandlerProxy.decorate(node, finalDefinition, this.root);
-		}
-		return finalDefinition;
+	private Map parseNestedCustomNode(Node ele, BeanDefinition containingBd) {
+		return parseCustomNode(ele, containingBd);
 	}
 
-	private BeanDefinition parseNestedCustomNode(Node ele, BeanDefinition containingBd) {
-		BeanDefinition innerDefinition = parseCustomNode(ele, containingBd);
-		if (innerDefinition == null) {
-			log.info("Incorrect usage of Node '" + ele.getName() + "' in a nested manner. "
-					+ "This tag cannot be used nested inside <property>. " + ele);
-			return null;
-		}
-		String id = ele.getName() + BeanUtils.GENERATED_BEAN_NAME_SEPARATOR
-				+ ObjectUtils.getIdentityHexString(innerDefinition);
-		innerDefinition.setBeanName(id);
-		return innerDefinition;
-	}
 
-	/**
-	 * Determine whether the name of the supplied node is equal to the supplied
-	 * name.
-	 * <p>
-	 * The default implementation checks the supplied desired name against both
-	 * {@link Node#getNodeName()} and {@link Node#getLocalName()}.
-	 * <p>
-	 * Subclasses may override the default implementation to provide a different
-	 * mechanism for comparing node names.
-	 * 
-	 * @param node        the node to compare
-	 * @param desiredName the name to check for
-	 */
-	public boolean nodeNameEquals(Node node, String desiredName) {
+	protected boolean nodeNameEquals(Node node, String desiredName) {
 		return desiredName.equals(node.getName());
 	}
 
-	public boolean isDefaultNamespace(Node node) {
-		return node.getName().equals(Constant.DOC_BEAN) || node.getName().equals(Constant.DOC_ROOT)
-				|| node.getName().equals(Constant.DOC_IMPORT);
+	protected boolean isDefaultNamespace(Node node) {
+		return node.getName().equals(Constant.DOC_BEAN) || node.getName().equals(Constant.DOC_BEANS)
+				|| node.getName().equals(Constant.DOC_ROOT) || node.getName().equals(Constant.DOC_IMPORT)
+				|| node.getName().equals(Constant.DOC_ALIAS);
 
 	}
 

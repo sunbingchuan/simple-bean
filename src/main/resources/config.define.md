@@ -1,0 +1,153 @@
+default-lazy-init:xx
+default-autowire-candidates:xx
+default-init-method:xx
+default-destroy-method:xx
+default-merge:xx
+scan
+	...
+bean
+	...
+beans
+	...
+import
+	...
+#配置实例
+
+bean
+class:xxx
+	id:xx
+	name:xx[xx,xx]
+	scope：xx
+	description
+		text:xx
+	abstract:xx
+	lazy-init:xx
+	autowire:xx
+	depends-on:xx[xx,xx]
+	autowire-candidate:xx 
+	primary:xx
+	init-method:xxx
+	destroy-method:xx
+	factory-method:xx
+	factory-bean:xxx
+	factory-bean-class-name:xx
+		meta
+			key:xx
+			value:xx
+	lookup-method
+		name:xx
+		bean:xx
+	replaced-method
+		name:xx
+		replacer:xx
+	constructor-arg
+		index:xx
+		type:xx
+		name:xx
+		#prop-value
+		description
+			xxx
+		meta
+			xxx
+		[
+		ref:xx
+		ref-type:xx
+		value:xx
+		]
+		#prop
+		[
+		bean
+			xxx
+		]
+		[
+		ref
+			bean:
+			parent
+		]
+		[
+		idref
+			bean:xx
+		]
+		[
+		value
+			type:xx
+			[
+			value:xx
+			]
+			text:xx
+		]
+		array
+			node-type:xx
+			merge:xx
+			description
+				text:xx
+			->prop..
+		set
+			node-type:xx
+			merge
+			description
+				text:xx
+			->prop..
+		list
+			node-type:xx
+			merge
+			description
+				text:xx
+			->prop..
+		map
+			key-type:xx
+			value-type:xx
+			merge:xx
+			entry
+				#pairs
+				[
+				key-ref:xx
+				key:xx
+				key-type:xx
+				value:xx
+				value-ref:xx
+				value-type:xx
+				]
+				description
+					text:xx
+				key
+					->prop..
+				value
+					->prop..
+		props
+			key-type:xx
+			value-type:xx
+			merge:xx
+			prop
+				->pairs..
+		->cumsom
+	property
+		name:xx
+		type:xx
+		->prop-value
+aop
+					
+
+
+#存储规则
+单节点:
+1.
+map
+ value：
+ attr:
+多节点
+map
+ value:list
+ attr:
+list
+ map:
+  value:
+  attr
+2.
+map存储体中指定value类型
+
+3.
+指定type 如果String 直接转，不是的话就去造
+解析，default String 
+
+\t?

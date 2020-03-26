@@ -2,7 +2,7 @@ package com.bc.simple.bean.common.reactor;
 
 import com.bc.simple.bean.common.reactor.po.Beaker;
 import com.bc.simple.bean.common.reactor.po.ReactBeaker;
-import com.bc.simple.bean.core.support.CurrencyException;
+import com.bc.simple.bean.core.support.SimpleException;
 
 public class Laboratory {
 	private Beaker result;
@@ -36,7 +36,7 @@ public class Laboratory {
 			try {
 				init.waitForElement();
 			} catch (InterruptedException e) {
-				throw new CurrencyException(e);
+				throw new SimpleException(e);
 			}
 			reactor.react(init);
 			ReactBeaker[] reactBeakers = reactor.pipe();

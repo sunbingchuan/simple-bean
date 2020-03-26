@@ -1,37 +1,54 @@
 package com.bc.simple.bean.core.handler;
 
-import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.bc.simple.bean.BeanDefinition;
 import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
+import com.bc.simple.bean.common.util.BeanUtils;
+import com.bc.simple.bean.common.util.ResourceUtils;
 import com.bc.simple.bean.common.util.StringUtils;
 import com.bc.simple.bean.core.parser.BeanDefinitionParser;
+import com.bc.simple.bean.core.support.SimpleException;
 
 public class HandlerProxy {
-	private BeanFactory beanFactory;
+
+	private static final String configLocation = "META-INF/simple.handlers";
+
 	private final ConcurrentHashMap<String, Handler> handlers = new ConcurrentHashMap<String, Handler>();
 
+	@SuppressWarnings("rawtypes")
 	private void init(BeanFactory beanFactory) {
-		this.beanFactory = beanFactory;
-		registerHandler(new ScanHandler(beanFactory));
+		Properties props = ResourceUtils.loadAllProperties(configLocation, beanFactory.getBeanClassLoader());
+		for (Entry<Object, Object> entry : props.entrySet()) {
+			String key = StringUtils.toString(entry.getKey());
+			String value = StringUtils.toString(entry.getValue());
+			try {
+				Class handlerClass = BeanUtils.forName(value, beanFactory.getBeanClassLoader());
+				if (handlerClass != null && Handler.class.isAssignableFrom(handlerClass)) {
+					Handler handler = (Handler) handlerClass.newInstance();
+					handler.setBeanFactory(beanFactory);
+					handlers.put(key, handler);
+				}
+			} catch (Exception e) {
+				throw new SimpleException("key '" + key + "' parsed error of simple.handlers!", e);
+			}
+		}
+
 	}
 
 	public HandlerProxy(BeanFactory beanFactory) {
 		init(beanFactory);
 	}
 
-	public void registerHandler(Handler handler) {
-		handlers.put(handler.getDomain(), handler);
-	}
-
 
 	/**
-	 * Parses the supplied {@link Element} by delegating to the
-	 * {@link BeanDefinitionParser} that is registered for that {@link Element}.
+	 * Parses the supplied {@link Element} by delegating to the {@link BeanDefinitionParser} that is
+	 * registered for that {@link Element}.
 	 */
-	public BeanDefinition parse(Node element, BeanDefinition containingBd, Node root) {
+	public Object parse(Node element, BeanDefinition containingBd, Node root) {
 		try {
 			String domain = StringUtils.getLetters(element.getName());
 			Handler handler = handlers.get(domain);
@@ -40,19 +57,8 @@ public class HandlerProxy {
 			}
 			return containingBd;
 		} catch (Exception e) {
-			// ignore
+			throw new SimpleException("resolve config of " + element + " error!", e);
 		}
-		return null;
-	}
-
-
-
-	public static BeanDefinition decorate(Node node, BeanDefinition originalDef, Node root) {
-		return null;
-	}
-
-	public static BeanDefinition decorate(Map<String, Object> attr, BeanDefinition originalDef, Node root) {
-		return null;
 	}
 
 }

@@ -10,7 +10,7 @@ public class InjectedElement {
 	private Field field;
 	private Parameter parameter;
 
-	private Map<String, Object> annotationAttributes;
+	private Map<Class<?>, Object> annotationAttributes;
 	private String injectName;
 	private String injectObject;
 
@@ -55,11 +55,12 @@ public class InjectedElement {
 		this.injectObject = injectObject;
 	}
 
-	public Map<String, Object> getAnnotationAttributes() {
+
+	public Map<Class<?>, Object> getAnnotationAttributes() {
 		return annotationAttributes;
 	}
 
-	public void setAnnotationAttributes(Map<String, Object> annotationAttributes) {
+	public void setAnnotationAttributes(Map<Class<?>, Object> annotationAttributes) {
 		this.annotationAttributes = annotationAttributes;
 	}
 

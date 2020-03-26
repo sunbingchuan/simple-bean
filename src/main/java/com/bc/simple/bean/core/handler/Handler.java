@@ -1,6 +1,7 @@
 package com.bc.simple.bean.core.handler;
 
 import com.bc.simple.bean.BeanDefinition;
+import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
 
 /**
@@ -9,7 +10,9 @@ import com.bc.simple.bean.common.config.ConfigLoader.Node;
  */
 public interface Handler {
 
-	public String getDomain();
+	public void setBeanFactory(BeanFactory factory);
+	
+	
 
 	public BeanDefinition handle(Node element, BeanDefinition containingBd, Node root);
 

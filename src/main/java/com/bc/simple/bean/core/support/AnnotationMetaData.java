@@ -2,10 +2,8 @@ package com.bc.simple.bean.core.support;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
@@ -15,6 +13,7 @@ import com.bc.simple.bean.common.Resource;
 import com.bc.simple.bean.common.util.AnnotationUtils;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.Constant;
+import com.bc.simple.bean.common.util.StringUtils;
 import com.bc.simple.bean.core.asm.AnnotationVisitor;
 import com.bc.simple.bean.core.asm.ClassVisitor;
 import com.bc.simple.bean.core.asm.MethodVisitor;
@@ -29,13 +28,11 @@ public class AnnotationMetaData extends ClassVisitor {
 		super(SpringAsmInfo.ASM_VERSION);
 	}
 
-	protected final LinkedHashMap<String, LinkedHashMap<String, Object>> superAnnotationAttributes = new LinkedHashMap<>();
+	protected final LinkedHashMap<String, LinkedHashMap<String, Object>> annotationAttributes = new LinkedHashMap<>();
 
 	protected final Set<String> annotationSet = new LinkedHashSet<>(4);
 
-	protected final Set<String> annotationTypes = new LinkedHashSet<>(4);
 
-	protected final Map<String, Set<String>> metaAnnotationMap = new LinkedHashMap<>(4);
 
 	protected final Set<MethodMetaData> methodMetadataSet = new LinkedHashSet<>(4);
 
@@ -107,10 +104,9 @@ public class AnnotationMetaData extends ClassVisitor {
 	public AnnotationVisitor visitAnnotation(final String desc, boolean visible) {
 		String className = Type.getType(desc).getClassName();
 		this.annotationSet.add(className);
-		LinkedHashMap<String, Object> annotationAttributes = new LinkedHashMap<>();
-		superAnnotationAttributes.put(className, annotationAttributes);
-		annotationTypes.add(className);
-		return new SimpleAnnotationVisitor(annotationAttributes, this.classLoader);
+		LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
+		annotationAttributes.put(className, attributes);
+		return new SimpleAnnotationVisitor(attributes, this.classLoader);
 	}
 
 	@Override
@@ -227,18 +223,23 @@ public class AnnotationMetaData extends ClassVisitor {
 
 		private static final Log LOG = LogFactory.getLog(SimpleAnnotationVisitor.class);
 
-		protected final LinkedHashMap<String, Object> annotationAttributes;
+		private int i=0;
+		
+		protected final LinkedHashMap<String, Object> attributes;
 		protected ClassLoader classLoader;
 
 		public SimpleAnnotationVisitor(LinkedHashMap<String, Object> annotationAttributes, ClassLoader classLoader) {
 			super(SpringAsmInfo.ASM_VERSION);
 			this.classLoader = classLoader;
-			this.annotationAttributes = annotationAttributes;
+			this.attributes = annotationAttributes;
 		}
 
 		@Override
 		public void visit(String attributeName, Object attributeValue) {
-			this.annotationAttributes.put(attributeName, attributeValue);
+			if (StringUtils.isEmpty(attributeName)) {
+				attributeName=""+i;
+			}
+			this.attributes.put(attributeName, attributeValue);
 		}
 
 		@Override
@@ -246,14 +247,14 @@ public class AnnotationMetaData extends ClassVisitor {
 			String annotationType = Type.getType(asmTypeDescriptor).getClassName();
 			LinkedHashMap<String, Object> nestedAttributes = new LinkedHashMap<>();
 			nestedAttributes.put(Constant.ATTR_ANNOTATION_TYPE, annotationType);
-			this.annotationAttributes.put(attributeName, nestedAttributes);
+			this.attributes.put(attributeName, nestedAttributes);
 			return new SimpleAnnotationVisitor(nestedAttributes, this.classLoader);
 		}
 
 		@Override
 		public AnnotationVisitor visitArray(String attributeName) {
 			LinkedHashMap<String, Object> nestedAttributes = new LinkedHashMap<>();
-			this.annotationAttributes.put(attributeName, nestedAttributes);
+			this.attributes.put(attributeName, nestedAttributes);
 			return new SimpleAnnotationVisitor(nestedAttributes, this.classLoader);
 		}
 
@@ -284,27 +285,18 @@ public class AnnotationMetaData extends ClassVisitor {
 		return this.annotationSet.contains(annotationName);
 	}
 
-	public boolean hasMetaAnnotation(String metaAnnotationType) {
-		Collection<Set<String>> allMetaTypes = this.metaAnnotationMap.values();
-		for (Set<String> metaTypes : allMetaTypes) {
-			if (metaTypes.contains(metaAnnotationType)) {
-				return true;
-			}
-		}
-		return false;
-	}
 
 	public boolean isAnnotated(String annotationName) {
 		return (!AnnotationUtils.isInJavaLangAnnotationPackage(annotationName)
-				&& this.superAnnotationAttributes.containsKey(annotationName));
+				&& this.annotationAttributes.containsKey(annotationName));
 	}
 
 	public Set<String> getAnnotationTypes() {
-		return annotationTypes;
+		return annotationSet;
 	}
 
 	public LinkedHashMap<String, Object> getAttributes(String type) {
-		return superAnnotationAttributes.get(type);
+		return annotationAttributes.get(type);
 	}
 
 	public static class MethodMetaData extends MethodVisitor {
@@ -325,7 +317,7 @@ public class AnnotationMetaData extends ClassVisitor {
 
 		protected final AnnotationMetaData parent;
 
-		protected final LinkedHashMap<String, Object> attributesMap = new LinkedHashMap<>(4);
+		protected final LinkedHashMap<String, Object> methodAnnotationAttributesMap = new LinkedHashMap<>(4);
 
 		public MethodMetaData(String methodName, int access, String declaringClassName, String returnTypeName,
 				String[] parameterTypeName, ClassLoader classLoader, AnnotationMetaData parent) {
@@ -343,7 +335,7 @@ public class AnnotationMetaData extends ClassVisitor {
 		public AnnotationVisitor visitAnnotation(final String desc, boolean visible) {
 			String className = Type.getType(desc).getClassName();
 			LinkedHashMap<String, Object> annotationAttributes = new LinkedHashMap<>();
-			attributesMap.put(className, annotationAttributes);
+			methodAnnotationAttributesMap.put(className, annotationAttributes);
 			return new SimpleAnnotationVisitor(annotationAttributes, this.classLoader);
 		}
 
@@ -368,11 +360,11 @@ public class AnnotationMetaData extends ClassVisitor {
 		}
 
 		public boolean isAnnotated(String annotationName) {
-			return this.attributesMap.containsKey(annotationName);
+			return this.methodAnnotationAttributesMap.containsKey(annotationName);
 		}
 
 		public Object getAnnotationAttributes(String annotationName) {
-			return attributesMap.get(annotationName);
+			return methodAnnotationAttributesMap.get(annotationName);
 		}
 
 		public String getDeclaringClassName() {

@@ -21,10 +21,9 @@ public class StringUtils {
 	public static final String PLACEHOLDER_SUFFIX_BRACES = "}";
 
 	/**
-	 * Pseudo URL prefix for all matching resources from the class path:
-	 * "classpath*:" This differs from ResourceLoader's classpath URL prefix in that
-	 * it retrieves all matching resources for a given name (e.g. "/beans.xml"), for
-	 * example in the root of all deployed JAR files.
+	 * Pseudo URL prefix for all matching resources from the class path: "classpath*:" This differs
+	 * from ResourceLoader's classpath URL prefix in that it retrieves all matching resources for a
+	 * given name (e.g. "/beans.xml"), for example in the root of all deployed JAR files.
 	 * 
 	 * @see org.springframework.core.io.ResourceLoader#CLASSPATH_URL_PREFIX
 	 */
@@ -70,31 +69,12 @@ public class StringUtils {
 		return false;
 	}
 
-	/**
-	 * Check that the given {@code String} is neither {@code null} nor of length 0.
-	 * <p>
-	 * Note: this method returns {@code true} for a {@code String} that purely
-	 * consists of whitespace.
-	 * 
-	 * @param str the {@code String} to check (may be {@code null})
-	 * @return {@code true} if the {@code String} is not {@code null} and has length
-	 * @see #hasLength(CharSequence)
-	 * @see #hasText(String)
-	 */
+
 	public static boolean hasLength(String str) {
 		return (str != null && !str.isEmpty());
 	}
 
-	/**
-	 * Normalize the path by suppressing sequences like "path/.." and inner simple
-	 * dots.
-	 * <p>
-	 * The result is convenient for path comparison. For other uses, notice that
-	 * Windows separators ("\") are replaced by simple slashes.
-	 * 
-	 * @param path the original path
-	 * @return the normalized path
-	 */
+
 	public static String cleanPath(String path) {
 		if (!hasLength(path)) {
 			return path;
@@ -159,7 +139,7 @@ public class StringUtils {
 		List<String> result = new ArrayList<String>();
 		int index = -1, pos = 0;
 		if ((index = str.indexOf(delimiter)) < 0) {
-			return new String[] { str };
+			return new String[] {str};
 		}
 		while ((index = str.indexOf(delimiter, pos)) >= 0) {
 
@@ -177,15 +157,7 @@ public class StringUtils {
 		return result.toArray(new String[result.size()]);
 	}
 
-	/**
-	 * Apply the given relative path to the given Java resource path, assuming
-	 * standard Java folder separation (i.e. "/" separators).
-	 * 
-	 * @param path         the path to start from (usually a full file path)
-	 * @param relativePath the relative path to apply (relative to the full file
-	 *                     path above)
-	 * @return the full file path that results from applying the relative path
-	 */
+
 	public static String applyRelativePath(String path, String relativePath) {
 		int separatorIndex = path.lastIndexOf(FOLDER_SEPARATOR);
 		if (separatorIndex != -1) {
@@ -207,30 +179,7 @@ public class StringUtils {
 		return path;
 	}
 
-	/**
-	 * Tokenize the given {@code String} into a {@code String} array via a
-	 * {@link StringTokenizer}.
-	 * <p>
-	 * The given {@code delimiters} string can consist of any number of delimiter
-	 * characters. Each of those characters can be used to separate tokens. A
-	 * delimiter is always a single character; for multi-character delimiters,
-	 * consider using {@link #delimitedListToStringArray}.
-	 * 
-	 * @param str               the {@code String} to tokenize (potentially
-	 *                          {@code null} or empty)
-	 * @param delimiters        the delimiter characters, assembled as a
-	 *                          {@code String} (each of the characters is
-	 *                          individually considered as a delimiter)
-	 * @param trimTokens        trim the tokens via {@link String#trim()}
-	 * @param ignoreEmptyTokens omit empty tokens from the result array (only
-	 *                          applies to tokens that are empty after trimming;
-	 *                          StringTokenizer will not consider subsequent
-	 *                          delimiters as token in the first place).
-	 * @return an array of the tokens
-	 * @see java.util.StringTokenizer
-	 * @see String#trim()
-	 * @see #delimitedListToStringArray
-	 */
+
 	public static String[] tokenizeToStringArray(String str, String delimiters, boolean trimTokens,
 			boolean ignoreEmptyTokens) {
 
@@ -253,14 +202,11 @@ public class StringUtils {
 	}
 
 	/**
-	 * Return whether the given resource location is a URL: either a special
-	 * "classpath" or "classpath*" pseudo URL or a standard URL.
+	 * Return whether the given resource location is a URL: either a special "classpath" or
+	 * "classpath*" pseudo URL or a standard URL.
 	 * 
 	 * @param resourceLocation the location String to check
 	 * @return whether the location qualifies as a URL
-	 * @see ResourcePatternResolver#CLASSPATH_ALL_URL_PREFIX
-	 * @see com.bc.spring.reduce.common.util.CommonTest3.util.ResourceUtils#CLASSPATH_URL_PREFIX
-	 * @see com.bc.spring.reduce.common.util.CommonTest3.util.ResourceUtils#isUrl(String)
 	 * @see java.net.URL
 	 */
 	public static boolean isUrl(String resourceLocation) {
@@ -312,22 +258,12 @@ public class StringUtils {
 		return sb.toString();
 	}
 
-	/**
-	 * Replaces all placeholders of format {@code ${name}} with the value returned
-	 * from the supplied {@link PlaceholderResolver}.
-	 * 
-	 * @param value               the value containing the placeholders to be
-	 *                            replaced
-	 * @param placeholderResolver the {@code PlaceholderResolver} to use for
-	 *                            replacement
-	 * @return the supplied value with placeholders replaced inline
-	 */
+
 	@SuppressWarnings("rawtypes")
 	public static String replacePlaceholders(String original, Map properties, String placeholderPrefix,
 			String placeholderSuffix) {
 		StringBuilder result = new StringBuilder(original);
-		int startIndex = -1, endIndex = -1;
-		;
+		int startIndex = -1, endIndex = -1;;
 		while ((startIndex = result.indexOf(placeholderPrefix, endIndex)) >= 0) {
 			endIndex = findMatchEndIndex(result, startIndex + placeholderPrefix.length(), placeholderPrefix,
 					placeholderSuffix);
@@ -362,13 +298,7 @@ public class StringUtils {
 		return -1;
 	}
 
-	/**
-	 * Test whether the given string matches the given substring at the given index.
-	 * 
-	 * @param str       the original string (or StringBuilder)
-	 * @param index     the index in the original string to start matching against
-	 * @param substring the substring to match at the given index
-	 */
+
 	public static boolean substringMatch(CharSequence str, int index, CharSequence substring) {
 		if (index + substring.length() > str.length()) {
 			return false;
@@ -381,24 +311,12 @@ public class StringUtils {
 		return true;
 	}
 
-	/**
-	 * Capitalize a {@code String}, changing the first letter to upper case as per
-	 * {@link Character#toUpperCase(char)}. No other letters are changed.
-	 * 
-	 * @param str the {@code String} to capitalize
-	 * @return the capitalized {@code String}
-	 */
+
 	public static String capitalize(String str) {
 		return changeFirstCharacterCase(str, true);
 	}
 
-	/**
-	 * Uncapitalize a {@code String}, changing the first letter to lower case as per
-	 * {@link Character#toLowerCase(char)}. No other letters are changed.
-	 * 
-	 * @param str the {@code String} to uncapitalize
-	 * @return the uncapitalized {@code String}
-	 */
+
 	public static String uncapitalize(String str) {
 		return changeFirstCharacterCase(str, false);
 	}
@@ -424,24 +342,12 @@ public class StringUtils {
 		return new String(chars, 0, chars.length);
 	}
 
-	/**
-	 * Convert a "."-based fully qualified class name to a "/"-based resource path.
-	 * 
-	 * @param className the fully qualified class name
-	 * @return the corresponding resource path, pointing to the class
-	 */
+
 	public static String convertClassNameToResourcePath(String className) {
 		return className.replace(PACKAGE_SEPARATOR, PATH_SEPARATOR);
 	}
 
-	/**
-	 * Replace all occurrences of a substring within a string with another string.
-	 * 
-	 * @param inString   {@code String} to examine
-	 * @param oldPattern {@code String} to replace
-	 * @param newPattern {@code String} to insert
-	 * @return a {@code String} with the replacements
-	 */
+
 	public static String replace(String inString, String oldPattern, String newPattern) {
 		if (!hasLength(inString) || !hasLength(oldPattern) || newPattern == null) {
 			return inString;
@@ -511,18 +417,7 @@ public class StringUtils {
 		}
 	}
 
-	/**
-	 * Convert a {@link Collection} to a delimited {@code String} (e.g. CSV).
-	 * <p>
-	 * Useful for {@code toString()} implementations.
-	 * 
-	 * @param coll   the {@code Collection} to convert (potentially {@code null} or
-	 *               empty)
-	 * @param delim  the delimiter to use (typically a ",")
-	 * @param prefix the {@code String} to start each element with
-	 * @param suffix the {@code String} to end each element with
-	 * @return the delimited {@code String}
-	 */
+
 	public static String collectionToDelimitedString(Collection<?> coll, String delim, String prefix, String suffix) {
 
 		if (coll == null || coll.size() == 0) {
@@ -538,5 +433,12 @@ public class StringUtils {
 			}
 		}
 		return sb.toString();
+	}
+
+	public static String toString(Object obj) {
+		if (obj == null) {
+			return null;
+		}
+		return obj.toString();
 	}
 }

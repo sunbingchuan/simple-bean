@@ -17,6 +17,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URL;
+import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,7 +28,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -39,17 +39,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.bc.simple.bean.ApplicationContext;
 import com.bc.simple.bean.BeanDefinition;
 import com.bc.simple.bean.BeanFactory;
-import com.bc.simple.bean.common.stereotype.Component;
-import com.bc.simple.bean.common.stereotype.Configuration;
-import com.bc.simple.bean.common.stereotype.Qualifier;
+import com.bc.simple.bean.common.annotation.Component;
+import com.bc.simple.bean.common.annotation.Qualifier;
 import com.bc.simple.bean.core.asm.ClassReader;
 import com.bc.simple.bean.core.asm.ClassVisitor;
 import com.bc.simple.bean.core.asm.Label;
 import com.bc.simple.bean.core.asm.MethodVisitor;
 import com.bc.simple.bean.core.asm.Opcodes;
 import com.bc.simple.bean.core.asm.SpringAsmInfo;
-import com.bc.simple.bean.core.support.AnnotationMetaData;
-import com.bc.simple.bean.core.support.CurrencyException;
+import com.bc.simple.bean.core.support.SimpleException;
 
 public class BeanUtils {
 
@@ -57,11 +55,7 @@ public class BeanUtils {
 
 	public static final String SHUTDOWN_METHOD_NAME = "shutdown";
 
-	/**
-	 * Naming prefix for CGLIB-renamed methods.
-	 * 
-	 * @see #isCglibRenamedMethod
-	 */
+
 	public static final String CGLIB_RENAMED_METHOD_PREFIX = "CGLIB$";
 
 	public static final Method[] NO_METHODS = {};
@@ -88,47 +82,29 @@ public class BeanUtils {
 	/** The inner class separator character: {@code '$'}. */
 	private static final char INNER_CLASS_SEPARATOR = '$';
 
-	/** The CGLIB class separator: {@code "$$"}. */
-	public static final String CGLIB_CLASS_SEPARATOR = "$$";
+	/** The PROXY class separator: {@code "$$"}. */
+	public static final String PROXY_CLASS_SEPARATOR = "$$";
 
 	/** The ".class" file suffix. */
 	public static final String CLASS_FILE_SUFFIX = ".class";
-	/**
-	 * Separator for generated bean names. If a class name or parent name is not
-	 * unique, "#1", "#2" etc will be appended, until the name becomes unique.
-	 */
+
 	public static final String GENERATED_BEAN_NAME_SEPARATOR = "#";
 
 	private static final Map<Class<?>, Field[]> declaredFieldsCache = new ConcurrentHashMap<>(256);
 
-	/**
-	 * Map with primitive wrapper type as key and corresponding primitive type as
-	 * value, for example: Integer.class -> int.class.
-	 */
+
 	private static final Map<Class<?>, Class<?>> primitiveWrapperTypeMap = new IdentityHashMap<>(8);
 
-	/**
-	 * Map with primitive type as key and corresponding wrapper type as value, for
-	 * example: int.class -> Integer.class.
-	 */
+
 	private static final Map<Class<?>, Class<?>> primitiveTypeToWrapperMap = new IdentityHashMap<>(8);
 
-	/**
-	 * Map with primitive type name as key and corresponding primitive type as
-	 * value, for example: "int" -> "int.class".
-	 */
+
 	private static final Map<String, Class<?>> primitiveTypeNameMap = new HashMap<>(32);
 
-	/**
-	 * Map with common Java language class name as key and corresponding Class as
-	 * value. Primarily for efficient deserialization of remote invocations.
-	 */
+
 	private static final Map<String, Class<?>> commonClassCache = new HashMap<>(64);
 
-	/**
-	 * Common Java language interfaces which are supposed to be ignored when
-	 * searching for 'primary' user-level interfaces.
-	 */
+
 	private static final Set<Class<?>> javaLanguageInterfaces;
 
 	private static final Set<Class<? extends Annotation>> qualifierTypes = new LinkedHashSet<>(2);
@@ -169,121 +145,59 @@ public class BeanUtils {
 		registerCommonClasses(Enum.class, Iterable.class, Iterator.class, Enumeration.class, Collection.class,
 				List.class, Set.class, Map.class, Map.Entry.class, Optional.class);
 
-		Class<?>[] javaLanguageInterfaceArray = { Serializable.class, Externalizable.class, Closeable.class,
-				AutoCloseable.class, Cloneable.class, Comparable.class };
+		Class<?>[] javaLanguageInterfaceArray = {Serializable.class, Externalizable.class, Closeable.class,
+				AutoCloseable.class, Cloneable.class, Comparable.class};
 		registerCommonClasses(javaLanguageInterfaceArray);
 		javaLanguageInterfaces = new HashSet<>(Arrays.asList(javaLanguageInterfaceArray));
 
 		qualifierTypes.add(Qualifier.class);
 	}
 
-	/**
-	 * Register the given common classes with the ClassUtils cache.
-	 */
+
 	private static void registerCommonClasses(Class<?>... commonClasses) {
 		for (Class<?> clazz : commonClasses) {
 			commonClassCache.put(clazz.getName(), clazz);
 		}
 	}
 
-	/**
-	 * Instantiate a class using its 'primary' constructor (for Kotlin classes,
-	 * potentially having default arguments declared) or its default constructor
-	 * (for regular Java classes, expecting a standard no-arg setup).
-	 * <p>
-	 * Note that this method tries to set the constructor accessible if given a
-	 * non-accessible (that is, non-public) constructor.
-	 * 
-	 * @param clazz the class to instantiate
-	 * @return the new instance
-	 * @throws BeanInstantiationException if the bean cannot be instantiated. The
-	 *                                    cause may notably indicate a
-	 *                                    {@link NoSuchMethodException} if no
-	 *                                    primary/default constructor was found, a
-	 *                                    {@link NoClassDefFoundError} or other
-	 *                                    {@link LinkageError} in case of an
-	 *                                    unresolvable class definition (e.g. due to
-	 *                                    a missing dependency at runtime), or an
-	 *                                    exception thrown from the constructor
-	 *                                    invocation itself.
-	 * @see Constructor#newInstance
-	 */
+
 	public static <T> T instantiateClass(Class<T> clazz) {
 		if (clazz.isInterface()) {
-			throw new CurrencyException("Specified class is an interface");
+			throw new SimpleException("Specified class is an interface");
 		}
 		try {
 			return instantiateClass(clazz.getDeclaredConstructor());
 		} catch (NoSuchMethodException ex) {
 
-			throw new CurrencyException("No default constructor found", ex);
+			throw new SimpleException("No default constructor found", ex);
 		} catch (LinkageError err) {
-			throw new CurrencyException("Unresolvable class definition", err);
+			throw new SimpleException("Unresolvable class definition", err);
 		}
 	}
 
-	/**
-	 * Instantiate a class using its no-arg constructor and return the new instance
-	 * as the specified assignable type.
-	 * <p>
-	 * Useful in cases where the type of the class to instantiate (clazz) is not
-	 * available, but the type desired (assignableTo) is known.
-	 * <p>
-	 * Note that this method tries to set the constructor accessible if given a
-	 * non-accessible (that is, non-public) constructor.
-	 * 
-	 * @param clazz        class to instantiate
-	 * @param assignableTo type that clazz must be assignableTo
-	 * @return the new instance
-	 * @throws BeanInstantiationException if the bean cannot be instantiated
-	 * @see Constructor#newInstance
-	 */
+
 	@SuppressWarnings("unchecked")
 	public static <T> T instantiateClass(Class<?> clazz, Class<T> assignableTo) {
 		return (T) instantiateClass(clazz);
 	}
 
-	/**
-	 * Convenience method to instantiate a class using the given constructor.
-	 * <p>
-	 * Note that this method tries to set the constructor accessible if given a
-	 * non-accessible (that is, non-public) constructor, and supports Kotlin classes
-	 * with optional parameters and default values.
-	 * 
-	 * @param ctor the constructor to instantiate
-	 * @param args the constructor arguments to apply (use {@code null} for an
-	 *             unspecified parameter if needed for Kotlin classes with optional
-	 *             parameters and default values)
-	 * @return the new instance
-	 * @throws BeanInstantiationException if the bean cannot be instantiated
-	 * @see Constructor#newInstance
-	 */
+
 	public static <T> T instantiateClass(Constructor<T> ctor, Object... args) {
 		try {
 			ctor.setAccessible(true);
 			return ctor.newInstance(args);
 		} catch (InstantiationException ex) {
-			throw new CurrencyException("Is it an abstract class?", ex);
+			throw new SimpleException("Is it an abstract class?", ex);
 		} catch (IllegalAccessException ex) {
-			throw new CurrencyException("Is the constructor accessible?", ex);
+			throw new SimpleException("Is the constructor accessible?", ex);
 		} catch (IllegalArgumentException ex) {
-			throw new CurrencyException("Illegal arguments for constructor", ex);
+			throw new SimpleException("Illegal arguments for constructor", ex);
 		} catch (Exception ex) {
-			throw new CurrencyException("Constructor threw exception", ex);
+			throw new SimpleException("Constructor threw exception", ex);
 		}
 	}
 
-	/**
-	 * Create a new GenericBeanDefinition for the given parent name and class name,
-	 * eagerly loading the bean class if a ClassLoader has been specified.
-	 * 
-	 * @param parentName  the name of the parent bean, if any
-	 * @param className   the name of the bean class, if any
-	 * @param classLoader the ClassLoader to use for loading bean classes (can be
-	 *                    {@code null} to just register bean classes by name)
-	 * @return the bean definition
-	 * @throws ClassNotFoundException if the bean class could not be loaded
-	 */
+
 	public static BeanDefinition createBeanDefinition(String className, ClassLoader classLoader)
 			throws ClassNotFoundException {
 
@@ -301,20 +215,7 @@ public class BeanUtils {
 		return forName(name, ApplicationContext.class.getClassLoader());
 	}
 
-	/**
-	 * Replacement for {@code Class.forName()} that also returns Class instances for
-	 * primitives (e.g. "int") and array class names (e.g. "String[]"). Furthermore,
-	 * it is also capable of resolving inner class names in Java source style (e.g.
-	 * "java.lang.Thread.State" instead of "java.lang.Thread$State").
-	 * 
-	 * @param name        the name of the Class
-	 * @param classLoader the class loader to use (may be {@code null}, which
-	 *                    indicates the default class loader)
-	 * @return a class instance for the supplied name
-	 * @throws ClassNotFoundException if the class was not found
-	 * @throws LinkageError           if the class file could not be loaded
-	 * @see Class#forName(String, boolean, ClassLoader)
-	 */
+
 	public static Class<?> forName(String name, ClassLoader classLoader) {
 		if (classLoader == null) {
 			classLoader = ApplicationContext.class.getClassLoader();
@@ -360,8 +261,8 @@ public class BeanUtils {
 		} catch (ClassNotFoundException ex) {
 			int lastDotIndex = name.lastIndexOf(PACKAGE_SEPARATOR);
 			if (lastDotIndex != -1) {
-				String innerClassName = name.substring(0, lastDotIndex) + INNER_CLASS_SEPARATOR
-						+ name.substring(lastDotIndex + 1);
+				String innerClassName =
+						name.substring(0, lastDotIndex) + INNER_CLASS_SEPARATOR + name.substring(lastDotIndex + 1);
 				try {
 					return (clToUse != null ? clToUse.loadClass(innerClassName) : Class.forName(innerClassName));
 				} catch (ClassNotFoundException ex2) {
@@ -372,20 +273,7 @@ public class BeanUtils {
 		return null;
 	}
 
-	/**
-	 * Generate a bean name for the given bean definition, unique within the given
-	 * bean factory.
-	 * 
-	 * @param definition  the bean definition to generate a bean name for
-	 * @param registry    the bean factory that the definition is going to be
-	 *                    registered with (to check for existing bean names)
-	 * @param isInnerBean whether the given bean definition will be registered as
-	 *                    inner bean or as top-level bean (allowing for special name
-	 *                    generation for inner beans versus top-level beans)
-	 * @return the generated bean name
-	 * @throws BeanDefinitionStoreException if no unique name can be generated for
-	 *                                      the given bean definition
-	 */
+
 	public static String generateBeanName(BeanDefinition definition, BeanFactory registry, boolean isInnerBean) {
 
 		String generatedBeanName = definition.getBeanClassName();
@@ -395,8 +283,7 @@ public class BeanUtils {
 			}
 		}
 		if (!StringUtils.hasText(generatedBeanName)) {
-			throw new CurrencyException("Unnamed bean definition specifies neither "
-					+ "'class' nor 'parent' nor 'factory-bean' - can't generate bean name");
+			throw new SimpleException("can't generate bean name!");
 		}
 
 		String id = generatedBeanName;
@@ -416,19 +303,13 @@ public class BeanUtils {
 	}
 
 	public static String generateAnnotatedBeanName(BeanDefinition definition, BeanFactory registry) {
-		AnnotationMetaData amd = definition.getMetadata();
-		if (amd != null) {
-			Set<String> types = amd.getAnnotationTypes();
+		Class<?> beanClass = definition.getBeanClass();
+		if (beanClass != null) {
+			Map<Class<?>, Map<String, Object>> attrs = AnnotationUtils.parseAnnotation(beanClass);
 			String beanName = null;
-			for (String type : types) {
-				if (type.equals(Component.class.getCanonicalName())
-						|| type.equals(Configuration.class.getCanonicalName())) {
-					LinkedHashMap<String, Object> attributes = amd.getAttributes(type);
-					Object value = attributes.get("value");
-					if (value instanceof String && StringUtils.isNotEmpty((String) value)) {
-						beanName = (String) value;
-					}
-				}
+			Map<String, Object> attr = attrs.get(Component.class);
+			if (attr != null) {
+				beanName = StringUtils.toString(attr.get(Constant.ATTR_VALUE));
 			}
 			if (StringUtils.hasText(beanName)) {
 				// Explicit bean name found.
@@ -442,16 +323,10 @@ public class BeanUtils {
 		return decapitalize(getShortName(className));
 	}
 
-	/**
-	 * Get the class name without the qualified package name.
-	 * 
-	 * @param className the className to get the short name for
-	 * @return the class name of the class without the package name
-	 * @throws IllegalArgumentException if the className is empty
-	 */
+
 	public static String getShortName(String className) {
 		int lastDotIndex = className.lastIndexOf(PACKAGE_SEPARATOR);
-		int nameEndIndex = className.indexOf(CGLIB_CLASS_SEPARATOR);
+		int nameEndIndex = className.indexOf(PROXY_CLASS_SEPARATOR);
 		if (nameEndIndex == -1) {
 			nameEndIndex = className.length();
 		}
@@ -460,18 +335,7 @@ public class BeanUtils {
 		return shortName;
 	}
 
-	/**
-	 * Utility method to take a string and convert it to normal Java variable name
-	 * capitalization. This normally means converting the first character from upper
-	 * case to lower case, but in the (unusual) special case when there is more than
-	 * one character and both the first and second characters are upper case, we
-	 * leave it alone.
-	 * <p>
-	 * Thus "FooBah" becomes "fooBah" and "X" becomes "x", but "URL" stays as "URL".
-	 *
-	 * @param name The string to be decapitalized.
-	 * @return The decapitalized version of the string.
-	 */
+
 	public static String decapitalize(String name) {
 		if (name == null || name.length() == 0) {
 			return name;
@@ -484,49 +348,23 @@ public class BeanUtils {
 		return new String(chars);
 	}
 
-	/**
-	 * Convert a "/"-based resource path to a "."-based fully qualified class name.
-	 * 
-	 * @param resourcePath the resource path pointing to a class
-	 * @return the corresponding fully qualified class name
-	 */
+
 	public static String convertResourcePathToClassName(String resourcePath) {
 		return resourcePath.replace(PATH_SEPARATOR, PACKAGE_SEPARATOR);
 	}
 
-	/**
-	 * Convert a "."-based fully qualified class name to a "/"-based resource path.
-	 * 
-	 * @param className the fully qualified class name
-	 * @return the corresponding resource path, pointing to the class
-	 */
+
 	public static String convertClassNameToResourcePath(String className) {
 		return className.replace(PACKAGE_SEPARATOR, PATH_SEPARATOR);
 	}
 
-	/**
-	 * Attempt to find a {@link Field field} on the supplied {@link Class} with the
-	 * supplied {@code name}. Searches all superclasses up to {@link Object}.
-	 * 
-	 * @param clazz the class to introspect
-	 * @param name  the name of the field
-	 * @return the corresponding Field object, or {@code null} if not found
-	 */
+
 
 	public static Field findField(Class<?> clazz, String name) {
 		return findField(clazz, name, null);
 	}
 
-	/**
-	 * Attempt to find a {@link Field field} on the supplied {@link Class} with the
-	 * supplied {@code name} and/or {@link Class type}. Searches all superclasses up
-	 * to {@link Object}.
-	 * 
-	 * @param clazz the class to introspect
-	 * @param name  the name of the field (may be {@code null} if type is specified)
-	 * @param type  the type of the field (may be {@code null} if name is specified)
-	 * @return the corresponding Field object, or {@code null} if not found
-	 */
+
 	public static Field findField(Class<?> clazz, String name, Class<?> type) {
 		Class<?> searchType = clazz;
 		while (Object.class != searchType && searchType != null) {
@@ -541,16 +379,7 @@ public class BeanUtils {
 		return null;
 	}
 
-	/**
-	 * This variant retrieves {@link Class#getDeclaredFields()} from a local cache
-	 * in order to avoid the JVM's SecurityManager check and defensive array
-	 * copying.
-	 * 
-	 * @param clazz the class to introspect
-	 * @return the cached array of fields
-	 * @throws IllegalStateException if introspection fails
-	 * @see Class#getDeclaredFields()
-	 */
+
 	private static Field[] getDeclaredFields(Class<?> clazz) {
 		Field[] result = declaredFieldsCache.get(clazz);
 		if (result == null) {
@@ -565,70 +394,27 @@ public class BeanUtils {
 		return result;
 	}
 
-	/**
-	 * Determine whether the given interface is a common Java language interface:
-	 * {@link Serializable}, {@link Externalizable}, {@link Closeable},
-	 * {@link AutoCloseable}, {@link Cloneable}, {@link Comparable} - all of which
-	 * can be ignored when looking for 'primary' user-level interfaces. Common
-	 * characteristics: no service-level operations, no bean property methods, no
-	 * default methods.
-	 * 
-	 * @param ifc the interface to check
-	 * @since 5.0.3
-	 */
+
 	public static boolean isJavaLanguageInterface(Class<?> ifc) {
 		return javaLanguageInterfaces.contains(ifc);
 	}
 
-	/**
-	 * Return the qualified name of the given method, consisting of fully qualified
-	 * interface/class name + "." + method name.
-	 * 
-	 * @param method the method
-	 * @return the qualified name of the method
-	 */
+
 	public static String getQualifiedMethodName(Method method) {
 		return getQualifiedMethodName(method, null);
 	}
 
-	/**
-	 * Return the qualified name of the given method, consisting of fully qualified
-	 * interface/class name + "." + method name.
-	 * 
-	 * @param method the method
-	 * @param clazz  the clazz that the method is being invoked on (may be
-	 *               {@code null} to indicate the method's declaring class)
-	 * @return the qualified name of the method
-	 * @since 4.3.4
-	 */
+
 	public static String getQualifiedMethodName(Method method, Class<?> clazz) {
 		return (clazz != null ? clazz : method.getDeclaringClass()).getName() + '.' + method.getName();
 	}
 
-	/**
-	 * Check if the given type represents a "simple" property: a primitive, a String
-	 * or other CharSequence, a Number, a Date, a URI, a URL, a Locale, a Class, or
-	 * a corresponding array.
-	 * <p>
-	 * Used to determine properties to check for a "simple" dependency-check.
-	 * 
-	 * @param clazz the type to check
-	 * @return whether the given type represents a "simple" property
-	 * @see org.Factory.beans.factory.support.RootBeanDefinition#DEPENDENCY_CHECK_SIMPLE
-	 * @see org.Factory.beans.factory.support.AbstractAutowireCapableBeanFactory#checkDependencies
-	 */
+
 	public static boolean isSimpleProperty(Class<?> clazz) {
 		return isSimpleValueType(clazz) || (clazz.isArray() && isSimpleValueType(clazz.getComponentType()));
 	}
 
-	/**
-	 * Check if the given type represents a "simple" value type: a primitive, an
-	 * enum, a String or other CharSequence, a Number, a Date, a URI, a URL, a
-	 * Locale or a Class.
-	 * 
-	 * @param clazz the type to check
-	 * @return whether the given type represents a "simple" value type
-	 */
+
 	public static boolean isSimpleValueType(Class<?> clazz) {
 		return (isPrimitiveOrWrapper(clazz) || Enum.class.isAssignableFrom(clazz)
 				|| CharSequence.class.isAssignableFrom(clazz) || Number.class.isAssignableFrom(clazz)
@@ -636,25 +422,12 @@ public class BeanUtils {
 				|| Locale.class == clazz || Class.class == clazz);
 	}
 
-	/**
-	 * Check if the given class represents a primitive wrapper, i.e. Boolean, Byte,
-	 * Character, Short, Integer, Long, Float, or Double.
-	 * 
-	 * @param clazz the class to check
-	 * @return whether the given class is a primitive wrapper class
-	 */
+
 	public static boolean isPrimitiveWrapper(Class<?> clazz) {
 		return primitiveWrapperTypeMap.containsKey(clazz);
 	}
 
-	/**
-	 * Check if the given class represents a primitive (i.e. boolean, byte, char,
-	 * short, int, long, float, or double) or a primitive wrapper (i.e. Boolean,
-	 * Byte, Character, Short, Integer, Long, Float, or Double).
-	 * 
-	 * @param clazz the class to check
-	 * @return whether the given class is a primitive or primitive wrapper class
-	 */
+
 	public static boolean isPrimitiveOrWrapper(Class<?> clazz) {
 		return (clazz.isPrimitive() || isPrimitiveWrapper(clazz));
 	}
@@ -672,22 +445,7 @@ public class BeanUtils {
 		R skip() throws Exception;
 	}
 
-	/**
-	 * Return the default ClassLoader to use: typically the thread context
-	 * ClassLoader, if available; the ClassLoader that loaded the ClassUtils class
-	 * will be used as fallback.
-	 * <p>
-	 * Call this method if you intend to use the thread context ClassLoader in a
-	 * scenario where you clearly prefer a non-null ClassLoader reference: for
-	 * example, for class path resource loading (but not necessarily for
-	 * {@code Class.forName}, which accepts a {@code null} ClassLoader reference as
-	 * well).
-	 * 
-	 * @return the default ClassLoader (only {@code null} if even the system
-	 *         ClassLoader isn't accessible)
-	 * @see Thread#getContextClassLoader()
-	 * @see ClassLoader#getSystemClassLoader()
-	 */
+
 	public static ClassLoader getDefaultClassLoader() {
 		ClassLoader cl = null;
 		try {
@@ -711,12 +469,7 @@ public class BeanUtils {
 		return cl;
 	}
 
-	/**
-	 * Check whether the given bean has any kind of destroy method to call.
-	 * 
-	 * @param bean           the bean instance
-	 * @param beanDefinition the corresponding bean definition
-	 */
+
 	public static boolean hasDestroyMethod(Object bean, BeanDefinition beanDefinition) {
 		if (bean instanceof AutoCloseable) {
 			return true;
@@ -728,32 +481,12 @@ public class BeanUtils {
 		return StringUtils.hasLength(destroyMethodName) && hasMethod(bean.getClass(), destroyMethodName);
 	}
 
-	/**
-	 * Determine whether the given class has a public constructor with the given
-	 * signature.
-	 * <p>
-	 * Essentially translates {@code NoSuchMethodException} to "false".
-	 * 
-	 * @param clazz      the clazz to analyze
-	 * @param paramTypes the parameter types of the method
-	 * @return whether the class has a corresponding constructor
-	 * @see Class#getMethod
-	 */
+
 	public static boolean hasConstructor(Class<?> clazz, Class<?>... paramTypes) {
 		return (getConstructorIfAvailable(clazz, paramTypes) != null);
 	}
 
-	/**
-	 * Determine whether the given class has a public constructor with the given
-	 * signature, and return it if available (else return {@code null}).
-	 * <p>
-	 * Essentially translates {@code NoSuchMethodException} to {@code null}.
-	 * 
-	 * @param clazz      the clazz to analyze
-	 * @param paramTypes the parameter types of the method
-	 * @return the constructor, or {@code null} if not found
-	 * @see Class#getConstructor
-	 */
+
 
 	public static <T> Constructor<T> getConstructorIfAvailable(Class<T> clazz, Class<?>... paramTypes) {
 		try {
@@ -763,41 +496,12 @@ public class BeanUtils {
 		}
 	}
 
-	/**
-	 * Determine whether the given class has a public method with the given
-	 * signature.
-	 * <p>
-	 * Essentially translates {@code NoSuchMethodException} to "false".
-	 * 
-	 * @param clazz      the clazz to analyze
-	 * @param methodName the name of the method
-	 * @param paramTypes the parameter types of the method
-	 * @return whether the class has a corresponding method
-	 * @see Class#getMethod
-	 */
+
 	public static boolean hasMethod(Class<?> clazz, String methodName, Class<?>... paramTypes) {
 		return (getMethodIfAvailable(clazz, methodName, paramTypes) != null);
 	}
 
-	/**
-	 * Determine whether the given class has a public method with the given
-	 * signature, and return it if available (else throws an
-	 * {@code IllegalStateException}).
-	 * <p>
-	 * In case of any signature specified, only returns the method if there is a
-	 * unique candidate, i.e. a single public method with the specified name.
-	 * <p>
-	 * Essentially translates {@code NoSuchMethodException} to
-	 * {@code IllegalStateException}.
-	 * 
-	 * @param clazz      the clazz to analyze
-	 * @param methodName the name of the method
-	 * @param paramTypes the parameter types of the method (may be {@code null} to
-	 *                   indicate any signature)
-	 * @return the method (never {@code null})
-	 * @throws IllegalStateException if the method has not been found
-	 * @see Class#getMethod
-	 */
+
 	public static Method getMethod(Class<?> clazz, String methodName, Class<?>... paramTypes) {
 		if (paramTypes != null) {
 			try {
@@ -834,22 +538,7 @@ public class BeanUtils {
 		return candidates;
 	}
 
-	/**
-	 * Determine whether the given class has a public method with the given
-	 * signature, and return it if available (else return {@code null}).
-	 * <p>
-	 * In case of any signature specified, only returns the method if there is a
-	 * unique candidate, i.e. a single public method with the specified name.
-	 * <p>
-	 * Essentially translates {@code NoSuchMethodException} to {@code null}.
-	 * 
-	 * @param clazz      the clazz to analyze
-	 * @param methodName the name of the method
-	 * @param paramTypes the parameter types of the method (may be {@code null} to
-	 *                   indicate any signature)
-	 * @return the method, or {@code null} if not found
-	 * @see Class#getMethod
-	 */
+
 
 	public static Method getMethodIfAvailable(Class<?> clazz, String methodName, Class<?>... paramTypes) {
 		if (paramTypes != null) {
@@ -873,14 +562,7 @@ public class BeanUtils {
 		}
 	}
 
-	/**
-	 * Return the number of methods with a given name (with any argument types), for
-	 * the given class and/or its superclasses. Includes non-public methods.
-	 * 
-	 * @param clazz      the clazz to check
-	 * @param methodName the name of the method
-	 * @return the number of methods with the given name
-	 */
+
 	public static int getMethodCountForName(Class<?> clazz, String methodName) {
 		int count = 0;
 		Method[] declaredMethods = clazz.getDeclaredMethods();
@@ -899,15 +581,7 @@ public class BeanUtils {
 		return count;
 	}
 
-	/**
-	 * Does the given class or one of its superclasses at least have one or more
-	 * methods with the supplied name (with any argument types)? Includes non-public
-	 * methods.
-	 * 
-	 * @param clazz      the clazz to check
-	 * @param methodName the name of the method
-	 * @return whether there is at least one method with the given name
-	 */
+
 	public static boolean hasAtLeastOneMethodWithName(Class<?> clazz, String methodName) {
 		Method[] declaredMethods = clazz.getDeclaredMethods();
 		for (Method method : declaredMethods) {
@@ -924,31 +598,7 @@ public class BeanUtils {
 		return (clazz.getSuperclass() != null && hasAtLeastOneMethodWithName(clazz.getSuperclass(), methodName));
 	}
 
-	/**
-	 * Given a method, which may come from an interface, and a target class used in
-	 * the current reflective invocation, find the corresponding target method if
-	 * there is one. E.g. the method may be {@code IFoo.bar()} and the target class
-	 * may be {@code DefaultFoo}. In this case, the method may be
-	 * {@code DefaultFoo.bar()}. This enables attributes on that method to be found.
-	 * <p>
-	 * <b>NOTE:</b> In contrast to
-	 * {@link org.springframework.aop.support.AopUtils#getMostSpecificMethod}, this
-	 * method does <i>not</i> resolve Java 5 bridge methods automatically. Call
-	 * {@link org.springframework.core.BridgeMethodResolver#findBridgedMethod} if
-	 * bridge method resolution is desirable (e.g. for obtaining metadata from the
-	 * original method definition).
-	 * <p>
-	 * <b>NOTE:</b> Since Spring 3.1.1, if Java security settings disallow
-	 * reflective access (e.g. calls to {@code Class#getDeclaredMethods} etc, this
-	 * implementation will fall back to returning the originally provided method.
-	 * 
-	 * @param method      the method to be invoked, which may come from an interface
-	 * @param targetClass the target class for the current invocation (may be
-	 *                    {@code null} or may not even implement the method)
-	 * @return the specific target method, or the original method if the
-	 *         {@code targetClass} does not implement it
-	 * @see #getInterfaceMethodIfPossible
-	 */
+
 	public static Method getMostSpecificMethod(Method method, Class<?> targetClass) {
 		if (targetClass != null && targetClass != method.getDeclaringClass() && isOverridable(method, targetClass)) {
 			try {
@@ -970,26 +620,16 @@ public class BeanUtils {
 		return method;
 	}
 
-	/**
-	 * Attempt to find a {@link Method} on the supplied class with the supplied name
-	 * and parameter types. Searches all superclasses up to {@code Object}.
-	 * <p>
-	 * Returns {@code null} if no {@link Method} can be found.
-	 * 
-	 * @param clazz      the class to introspect
-	 * @param name       the name of the method
-	 * @param paramTypes the parameter types of the method (may be {@code null} to
-	 *                   indicate any signature)
-	 * @return the Method object, or {@code null} if none found
-	 */
+
 	public static Method findMethod(Class<?> clazz, String name, Class<?>... paramTypes) {
 		Class<?> searchType = clazz;
 		Method result = null;
 		while (searchType != null) {
 			Method[] methods = (searchType.isInterface() ? searchType.getMethods() : searchType.getDeclaredMethods());
 			for (Method method : methods) {
-				if (name.equals(method.getName()) && (paramTypes == null || paramTypes.length == 0
-						|| paramsFit(paramTypes, method.getParameterTypes()))) {
+				if (name.equals(method.getName())
+						&& (((paramTypes == null || paramTypes.length == 0) && method.getParameterTypes().length == 0)
+								|| paramsFit(paramTypes, method.getParameterTypes()))) {
 					if (result != null) {
 						if (((result.getModifiers() ^ method.getModifiers()) & Modifier.PUBLIC) > 0) {
 							if (Modifier.isPublic(method.getModifiers())) {
@@ -1003,10 +643,41 @@ public class BeanUtils {
 					} else {
 						result = method;
 					}
-					return method;
 				}
 			}
-			searchType = searchType.getSuperclass();
+			if (result == null) {
+				searchType = searchType.getSuperclass();
+			} else {
+				searchType = null;
+			}
+		}
+		return result;
+	}
+
+	public static Constructor<?> findConstructor(Class<?> clazz, Class<?>... paramTypes) {
+		Class<?> searchType = clazz;
+		Constructor<?> result = null;
+		while (searchType != null) {
+			Constructor<?>[] constructors = clazz.getDeclaredConstructors();
+			for (Constructor<?> constructor : constructors) {
+				if (((paramTypes == null || paramTypes.length == 0) && constructor.getParameterTypes().length == 0)
+						|| paramsFit(paramTypes, constructor.getParameterTypes())) {
+					if (result != null) {
+						if (((result.getModifiers() ^ constructor.getModifiers()) & Modifier.PUBLIC) > 0) {
+							if (Modifier.isPublic(constructor.getModifiers())) {
+								result = constructor;
+							}
+						}
+					} else {
+						result = constructor;
+					}
+				}
+			}
+			if (result == null) {
+				searchType = searchType.getSuperclass();
+			} else {
+				searchType = null;
+			}
 		}
 		return result;
 	}
@@ -1027,20 +698,22 @@ public class BeanUtils {
 		return true;
 	}
 
-	/**
-	 * Determine a corresponding interface method for the given method handle, if
-	 * possible.
-	 * <p>
-	 * This is particularly useful for arriving at a public exported type on Jigsaw
-	 * which can be reflectively invoked without an illegal access warning.
-	 * 
-	 * @param method the method to be invoked, potentially from an implementation
-	 *               class
-	 * @return the corresponding interface method, or the original method if none
-	 *         found
-	 * @since 5.1
-	 * @see #getMostSpecificMethod
-	 */
+	public static boolean paramsEqual(Class<?>[] a, Class<?>[] b) {
+		if (a == null || b == null) {
+			throw new IllegalArgumentException("params could not be null");
+		}
+		if (a.length != b.length) {
+			return false;
+		}
+		for (int i = 0; i < b.length; i++) {
+			if (!a[i].equals(b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+
 	public static Method getInterfaceMethodIfPossible(Method method) {
 		if (Modifier.isPublic(method.getModifiers()) && !method.getDeclaringClass().isInterface()) {
 			Class<?> current = method.getDeclaringClass();
@@ -1059,21 +732,7 @@ public class BeanUtils {
 		return method;
 	}
 
-	/**
-	 * Determine whether the given method is declared by the user or at least
-	 * pointing to a user-declared method.
-	 * <p>
-	 * Checks {@link Method#isSynthetic()} (for implementation methods) as well as
-	 * the {@code GroovyObject} interface (for interface methods; on an
-	 * implementation class, implementations of the {@code GroovyObject} methods
-	 * will be marked as synthetic anyway). Note that, despite being synthetic,
-	 * bridge methods ({@link Method#isBridge()}) are considered as user-level
-	 * methods since they are eventually pointing to a user-declared generic method.
-	 * 
-	 * @param method the method to check
-	 * @return {@code true} if the method can be considered as user-declared; [@code
-	 *         false} otherwise
-	 */
+
 	public static boolean isUserLevelMethod(Method method) {
 		return (method.isBridge() || (!method.isSynthetic() && !isGroovyObjectMethod(method)));
 	}
@@ -1082,12 +741,7 @@ public class BeanUtils {
 		return method.getDeclaringClass().getName().equals("groovy.lang.GroovyObject");
 	}
 
-	/**
-	 * Determine whether the given method is overridable in the given target class.
-	 * 
-	 * @param method      the method to check
-	 * @param targetClass the target class to check against
-	 */
+
 	private static boolean isOverridable(Method method, Class<?> targetClass) {
 		if (Modifier.isPrivate(method.getModifiers())) {
 			return false;
@@ -1098,16 +752,7 @@ public class BeanUtils {
 		return (targetClass == null || getPackageName(method.getDeclaringClass()).equals(getPackageName(targetClass)));
 	}
 
-	/**
-	 * Return a public static method of a class.
-	 * 
-	 * @param clazz      the class which defines the method
-	 * @param methodName the static method name
-	 * @param args       the parameter types to the method
-	 * @return the static method, or {@code null} if no static method was found
-	 * @throws IllegalArgumentException if the method name is blank or the clazz is
-	 *                                  null
-	 */
+
 
 	public static Method getStaticMethod(Class<?> clazz, String methodName, Class<?>... args) {
 		try {
@@ -1118,64 +763,30 @@ public class BeanUtils {
 		}
 	}
 
-	/**
-	 * Determine the name of the package of the given class, e.g. "java.lang" for
-	 * the {@code java.lang.String} class.
-	 * 
-	 * @param clazz the class
-	 * @return the package name, or the empty String if the class is defined in the
-	 *         default package
-	 */
+
 	public static String getPackageName(Class<?> clazz) {
 		return getPackageName(clazz.getName());
 	}
 
-	/**
-	 * Determine the name of the package of the given fully-qualified class name,
-	 * e.g. "java.lang" for the {@code java.lang.String} class name.
-	 * 
-	 * @param fqClassName the fully-qualified class name
-	 * @return the package name, or the empty String if the class is defined in the
-	 *         default package
-	 */
+
 	public static String getPackageName(String fqClassName) {
 		int lastDotIndex = fqClassName.lastIndexOf(PACKAGE_SEPARATOR);
 		return (lastDotIndex != -1 ? fqClassName.substring(0, lastDotIndex) : "");
 	}
 
-	/**
-	 * Resolve the given class if it is a primitive class, returning the
-	 * corresponding primitive wrapper type instead.
-	 * 
-	 * @param clazz the class to check
-	 * @return the original class, or a primitive wrapper for the original primitive
-	 *         type
-	 */
+
 	public static Class<?> resolvePrimitiveIfNecessary(Class<?> clazz) {
 		return (clazz.isPrimitive() && clazz != void.class ? primitiveTypeToWrapperMap.get(clazz) : clazz);
 	}
 
-	/**
-	 * Return the user-defined class for the given instance: usually simply the
-	 * class of the given instance, but the original class in case of a
-	 * CGLIB-generated subclass.
-	 * 
-	 * @param instance the instance to check
-	 * @return the user-defined class
-	 */
+
 	public static Class<?> getUserClass(Object instance) {
 		return getUserClass(instance.getClass());
 	}
 
-	/**
-	 * Return the user-defined class for the given class: usually simply the given
-	 * class, but the original class in case of a CGLIB-generated subclass.
-	 * 
-	 * @param clazz the class to check
-	 * @return the user-defined class
-	 */
+
 	public static Class<?> getUserClass(Class<?> clazz) {
-		if (clazz.getName().contains(CGLIB_CLASS_SEPARATOR)) {
+		if (clazz.getName().contains(PROXY_CLASS_SEPARATOR)) {
 			Class<?> superclass = clazz.getSuperclass();
 			if (superclass != null && superclass != Object.class) {
 				return superclass;
@@ -1184,25 +795,21 @@ public class BeanUtils {
 		return clazz;
 	}
 
-	public static Method getCurrentMethod(Object... args) {
+	public static Executable getCurrentMethod(Object... args) {
 		StackTraceElement stack = Thread.currentThread().getStackTrace()[2];
 		String methodName = stack.getMethodName();
-		Class<?> proxy = BeanUtils.forName(stack.getClassName(), null);
+		Class<?> clazz = BeanUtils.forName(stack.getClassName(), null);
 		Class<?>[] paramTypes = null;
 		if (args != null) {
 			paramTypes = Arrays.asList(args).stream().map(Object::getClass).toArray(Class[]::new);
 		}
-		return BeanUtils.findMethod(proxy, methodName, paramTypes);
+		if ("<init>".equals(methodName)) {
+			return findConstructor(clazz, paramTypes);
+		}
+		return findMethod(clazz, methodName, paramTypes);
 	}
 
-	/**
-	 * Sort the given factory methods, preferring public methods and "greedy" ones
-	 * with a maximum of arguments. The result will contain public methods first,
-	 * with decreasing number of arguments, then non-public methods, again with
-	 * decreasing number of arguments.
-	 * 
-	 * @param factoryMethods the factory method array to sort
-	 */
+
 	public static void sortFactoryMethods(Method[] factoryMethods) {
 		Arrays.sort(factoryMethods, (fm1, fm2) -> {
 			boolean p1 = Modifier.isPublic(fm1.getModifiers());
@@ -1245,12 +852,13 @@ public class BeanUtils {
 					public MethodVisitor visitMethod(int access, String methodName, String descriptor, String signature,
 							String[] exceptions) {
 
-						com.bc.simple.bean.core.asm.Type[] args = com.bc.simple.bean.core.asm.Type
-								.getArgumentTypes(descriptor);
+						com.bc.simple.bean.core.asm.Type[] args =
+								com.bc.simple.bean.core.asm.Type.getArgumentTypes(descriptor);
 						String[] paras = new String[args.length];
 						int[] lvtSlotIndex = computeLvtSlotIndices((access & Opcodes.ACC_STATIC) > 0, args);
 						return new MethodVisitor(SpringAsmInfo.ASM_VERSION) {
 							private static final String CONSTRUCTOR = "<init>";
+							private static final String CLINIT = "<clinit>";
 
 							@Override
 							public void visitLocalVariable(String name, String descriptor, String signature,
@@ -1265,7 +873,9 @@ public class BeanUtils {
 
 							@Override
 							public void visitEnd() {
-								cache.put(resolveMember(), paras);
+								if (!methodName.equals(CLINIT)) {
+									cache.put(resolveMember(), paras);
+								}
 							}
 
 							private Member resolveMember() {
@@ -1322,9 +932,7 @@ public class BeanUtils {
 		return parameterNames;
 	}
 
-	/**
-	 * Checks whether the given annotation type is a recognized qualifier type.
-	 */
+
 	public static boolean isQualifier(Class<? extends Annotation> annotationType) {
 		for (Class<? extends Annotation> qualifierType : qualifierTypes) {
 			if (annotationType.equals(qualifierType) || annotationType.isAnnotationPresent(qualifierType)) {
@@ -1334,13 +942,99 @@ public class BeanUtils {
 		return false;
 	}
 
-	public static List<Class<?>> getGeneric(Class<?> source, Class<?> declare) {
-		List<Class<?>> list = new ArrayList<Class<?>>();
-		walkClass(source, list, declare);
+	private static final Map<Class<?>, Map<Set<ClassGenericParameter>, Class<?>>> genericCache = new HashMap<>();
+
+	/**
+	 * find the generic type of {@code source} declared by {@code declare}
+	 * 
+	 * @param source the target class
+	 * @param declare the class declared the generic param
+	 * @param index the generic params' index of the target
+	 * @return
+	 */
+	public static Class<?> getGeneric(Class<?> source, Class<?> declare, int index) {
+		Map<Set<ClassGenericParameter>, Class<?>> map = getGenericMap(source);
+		for (Set<ClassGenericParameter> key : map.keySet()) {
+			if (key.contains(new ClassGenericParameter(declare, index))) {
+				return map.get(key);
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * @see BeanUtils#getGeneric(Class, Class, int)
+	 * @param source
+	 * @param declare
+	 * @return
+	 */
+	public static List<Class<?>> getGenerics(Class<?> source, Class<?> declare) {
+		Map<Set<ClassGenericParameter>, Class<?>> map = getGenericMap(source);
+		Type[] params = declare.getTypeParameters();
+		List<Class<?>> list = new ArrayList<Class<?>>(params.length);
+		for (int i = 0; i < params.length; i++) {
+			for (Set<ClassGenericParameter> key : map.keySet()) {
+				if (key.contains(new ClassGenericParameter(declare, i))) {
+					list.add(map.get(key));
+				}
+			}
+		}
 		return list;
 	}
 
-	private static void walkClass(Class<?> source, List<Class<?>> list, Class<?> declare) {
+	/**
+	 * @see BeanUtils#getGeneric(Class, Class, int)
+	 * @param source
+	 * @return
+	 */
+	public static Map<Set<ClassGenericParameter>, Class<?>> getGenericMap(Class<?> source) {
+		Map<Set<ClassGenericParameter>, Class<?>> map;
+		if (!genericCache.containsKey(source)) {
+			map = new HashMap<>();
+			walkClass(source, map);
+			genericCache.put(source, map);
+		} else {
+			map = genericCache.get(source);
+		}
+		return map;
+	}
+
+	/**
+	 * to identify a generic param of specific class
+	 */
+	public static class ClassGenericParameter {
+		private Class<?> clazz;
+		private int index;
+
+		public ClassGenericParameter(Class<?> clazz, int index) {
+			if (clazz == null) {
+				throw new InvalidParameterException("param clazz shuld not be null!");
+			}
+			this.clazz = clazz;
+			this.index = index;
+		}
+
+		@Override
+		public int hashCode() {
+			return this.clazz.hashCode() + this.index;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this.getClass().isInstance(obj)) {
+				ClassGenericParameter cgp = (ClassGenericParameter) obj;
+				return cgp.clazz.equals(this.clazz) && cgp.index == this.index;
+			}
+			return false;
+		}
+
+		@Override
+		public String toString() {
+			return this.clazz.toString() + "." + this.index;
+		}
+	}
+
+	private static void walkClass(Class<?> source, Map<Set<ClassGenericParameter>, Class<?>> map) {
 		if (source == null || source.equals(Object.class)) {
 			return;
 		}
@@ -1348,42 +1042,82 @@ public class BeanUtils {
 		Type superClass = source.getGenericSuperclass();
 		if (superClass instanceof ParameterizedType) {
 			ParameterizedType pt = (ParameterizedType) superClass;
-			if (pt.getRawType().getTypeName().equals(declare.getCanonicalName())) {
-				for (Type param : pt.getActualTypeArguments()) {
-					list.add((Class<?>) param);
-				}
-			}
+			handleParameterizedType(map, pt);
 		}
 		for (Type type : interfaces) {
 			if (type instanceof ParameterizedType) {
 				ParameterizedType pt = (ParameterizedType) type;
-				if (pt.getRawType().getTypeName().equals(declare.getCanonicalName()))
-					for (Type param : pt.getActualTypeArguments()) {
-						list.add((Class<?>) param);
-					}
+				handleParameterizedType(map, pt);
 			}
 		}
-		if (list.size() == 0) {
-			walkClass(source.getSuperclass(), list, declare);
+		walkClass(source.getSuperclass(), map);
+		for (Class<?> clazz : source.getInterfaces()) {
+			walkClass(clazz, map);
 		}
-		if (list.size() == 0) {
-			for (Class<?> clazz : source.getInterfaces()) {
-				walkClass(clazz, list, declare);
-			}
 
+	}
+
+	private static void handleParameterizedType(Map<Set<ClassGenericParameter>, Class<?>> map, ParameterizedType pt) {
+		Type rawType = pt.getRawType();
+		int index = 0;
+		for (Type param : pt.getActualTypeArguments()) {
+			if (param instanceof Class) {
+				if (rawType instanceof Class) {
+					Set<ClassGenericParameter> set = new HashSet<>();
+					findCorrespondParams((Class<?>) rawType, index, set);
+					map.put(set, (Class<?>) param);
+				}
+			}
+			index++;
 		}
 	}
 
 	/**
-	 * Check if the right-hand side type may be assigned to the left-hand side type,
-	 * assuming setting by reflection. Considers primitive wrapper classes as
-	 * assignable to the corresponding primitive types.
+	 * find correspond generic param {@link ClassGenericParameter} set of one class
 	 * 
-	 * @param lhsType the target type
-	 * @param rhsType the value type that should be assigned to the target type
-	 * @return if the target type is assignable from the value type
-	 * @see TypeUtils#isAssignable
+	 * @param clazz target class
+	 * @param index the index of the generic param
+	 * @return
 	 */
+	public static Set<ClassGenericParameter> findCorrespondParams(Class<?> clazz, int index) {
+		Set<ClassGenericParameter> set = new HashSet<>();
+		findCorrespondParams(clazz, index, set);
+		return set;
+	}
+
+	private static void findCorrespondParams(Class<?> clazz, int index, Set<ClassGenericParameter> set) {
+		set.add(new ClassGenericParameter(clazz, index));
+		Type param = clazz.getTypeParameters()[index];
+		Type[] interfaces = clazz.getGenericInterfaces();
+		Type superClass = clazz.getGenericSuperclass();
+		if (superClass instanceof ParameterizedType) {
+			ParameterizedType pt = (ParameterizedType) superClass;
+			Type rawType = pt.getRawType();
+			int i = 0;
+			for (Type type : pt.getActualTypeArguments()) {
+				if (type.equals(param) && rawType instanceof Class<?>) {
+					findCorrespondParams((Class<?>) rawType, i, set);
+				}
+				i++;
+			}
+
+		}
+		for (Type itfe : interfaces) {
+			if (itfe instanceof ParameterizedType) {
+				ParameterizedType pt = (ParameterizedType) itfe;
+				Type rawType = pt.getRawType();
+				int i = 0;
+				for (Type type : pt.getActualTypeArguments()) {
+					if (type.equals(param) && rawType instanceof Class<?>) {
+						findCorrespondParams((Class<?>) rawType, i, set);
+					}
+					i++;
+				}
+			}
+		}
+	}
+
+
 	public static boolean isAssignable(Class<?> lhsType, Class<?> rhsType) {
 		if (lhsType.isAssignableFrom(rhsType)) {
 			return true;
@@ -1402,45 +1136,12 @@ public class BeanUtils {
 		return false;
 	}
 
-	/**
-	 * Determine if the given type is assignable from the given value, assuming
-	 * setting by reflection. Considers primitive wrapper classes as assignable to
-	 * the corresponding primitive types.
-	 * 
-	 * @param type  the target type
-	 * @param value the value that should be assigned to the type
-	 * @return if the type is assignable from the value
-	 */
+
 	public static boolean isAssignableValue(Class<?> type, Object value) {
 		return (value != null ? isAssignable(type, value.getClass()) : !type.isPrimitive());
 	}
 
-	/**
-	 * Algorithm that judges the match between the declared parameter types of a
-	 * candidate method and a specific list of arguments that this method is
-	 * supposed to be invoked with.
-	 * <p>
-	 * Determines a weight that represents the class hierarchy difference between
-	 * types and arguments. A direct match, i.e. type Integer -> arg of class
-	 * Integer, does not increase the result - all direct matches means weight 0. A
-	 * match between type Object and arg of class Integer would increase the weight
-	 * by 2, due to the superclass 2 steps up in the hierarchy (i.e. Object) being
-	 * the last one that still matches the required type Object. Type Number and
-	 * class Integer would increase the weight by 1 accordingly, due to the
-	 * superclass 1 step up the hierarchy (i.e. Number) still matching the required
-	 * type Number. Therefore, with an arg of type Integer, a constructor (Integer)
-	 * would be preferred to a constructor (Number) which would in turn be preferred
-	 * to a constructor (Object). All argument weights get accumulated.
-	 * <p>
-	 * Note: This is the algorithm used by MethodInvoker itself and also the
-	 * algorithm used for constructor and factory method selection in Spring's bean
-	 * container (in case of lenient constructor resolution which is the default for
-	 * regular bean definitions).
-	 * 
-	 * @param paramTypes the parameter types to match
-	 * @param args       the arguments to match
-	 * @return the accumulated weight for all arguments
-	 */
+
 	public static int getTypeDifferenceWeight(Class<?>[] paramTypes, Object[] args) {
 		int result = 0;
 		for (int i = 0; i < paramTypes.length; i++) {
@@ -1469,9 +1170,7 @@ public class BeanUtils {
 		return result;
 	}
 
-	/**
-	 * count the num of the storeys between two class
-	 */
+
 	public static int getTypeDifferenceWeight(Class<?> son, Class<?> parrent) {
 		int result = -1;
 		if (!parrent.isAssignableFrom(son)) {
@@ -1500,14 +1199,7 @@ public class BeanUtils {
 		return result;
 	}
 
-	/**
-	 * Sort the given constructors, preferring public constructors and "greedy" ones
-	 * with a maximum number of arguments. The result will contain public
-	 * constructors first, with decreasing number of arguments, then non-public
-	 * constructors, again with decreasing number of arguments.
-	 * 
-	 * @param constructors the constructor array to sort
-	 */
+
 	public static void sortConstructors(Constructor<?>[] constructors) {
 		Arrays.sort(constructors, (c1, c2) -> {
 			boolean p1 = Modifier.isPublic(c1.getModifiers());
@@ -1521,22 +1213,14 @@ public class BeanUtils {
 		});
 	}
 
-	/**
-	 * Determine the name of the class file, relative to the containing package:
-	 * e.g. "String.class"
-	 * 
-	 * @param clazz the class
-	 * @return the file name of the ".class" file
-	 */
+
 	public static String getClassFileName(Class<?> clazz) {
 		String className = clazz.getName();
 		int lastDotIndex = className.lastIndexOf(PACKAGE_SEPARATOR);
 		return className.substring(lastDotIndex + 1) + CLASS_FILE_SUFFIX;
 	}
 
-	/**
-	 * get the paramter indicated by @index as the type indicated by @clazz
-	 */
+
 	public static <T> T as(Class<T> clazz, Object obj) {
 		if (clazz.isInstance(obj)) {
 			return clazz.cast(obj);

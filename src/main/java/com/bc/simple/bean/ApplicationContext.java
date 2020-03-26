@@ -2,6 +2,7 @@ package com.bc.simple.bean;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.bc.simple.bean.core.parser.BeanDefinitionReader;
@@ -36,7 +37,6 @@ public class ApplicationContext {
 
 	private Processor lifecycleProcessor;
 
-
 	public ApplicationContext() {
 	}
 
@@ -59,10 +59,8 @@ public class ApplicationContext {
 				// Allows post-processing of the bean factory in context subclasses.
 				postProcessBeanFactory(beanFactory);
 
-				// Invoke factory processors registered as beans in the context.
-				invokeBeanFactoryPostProcessors(beanFactory);
-
-				// Register bean processors that intercept bean creation.
+				postProcessBeanDefinitions(beanFactory);
+				
 				registerBeanPostProcessors(beanFactory);
 
 				// Initialize other special beans in specific context subclasses.
@@ -83,7 +81,6 @@ public class ApplicationContext {
 		}
 	}
 
-
 	protected void prepareRefresh() {
 		if (!active.get()) {
 			active.compareAndSet(false, true);
@@ -93,15 +90,12 @@ public class ApplicationContext {
 		}
 	}
 
-
 	protected BeanFactory obtainFreshBeanFactory() {
 		refreshBeanFactory();
 		return getBeanFactory();
 	}
 
-
 	protected void prepareBeanFactory(BeanFactory beanFactory) {
-
 		// Configure the bean factory with context callbacks.
 		beanFactory.addProcessor(new CommonProcessor());
 		// MessageSource registered (and found for autowiring) as a bean.
@@ -109,37 +103,36 @@ public class ApplicationContext {
 		beanFactory.registerResolvableDependency(ApplicationContext.class, this);
 	}
 
-
 	protected void postProcessBeanFactory(BeanFactory beanFactory) {
-	}
-
-
-	protected void invokeBeanFactoryPostProcessors(BeanFactory beanFactory) {
 		List<Processor> processors = getProcessors();
 		for (Processor processor : processors) {
 			processor.processBeanFactory(beanFactory);
 		}
 	}
+	
+	protected void postProcessBeanDefinitions(BeanFactory beanFactory) {
+		List<Processor> processors = getProcessors();
+		for (Processor processor : processors) {
+			processor.processBeanDefinitions(beanFactory.getBeanDefinitions());
+		}
+	}
 
 
 	protected void registerBeanPostProcessors(BeanFactory beanFactory) {
-		Map<String, Processor> processors = beanFactory.getBeansOfType(Processor.class, true, false);
+		Map<String, Processor> processors = beanFactory.getBeans(Processor.class);
 		for (String beanName : processors.keySet()) {
 			getBeanFactory().addProcessor(processors.get(beanName));
 		}
 	}
-
 
 	protected void initLifecycleProcessor() {
 		BeanFactory beanFactory = getBeanFactory();
 		this.lifecycleProcessor = beanFactory.getBean(Processor.class);
 	}
 
-
 	protected void onRefresh() {
 		// For subclasses: do nothing by default.
 	}
-
 
 	protected void finishBeanFactoryInitialization(BeanFactory beanFactory) {
 		// Allow for caching all bean definition metadata, not expecting further
@@ -150,22 +143,17 @@ public class ApplicationContext {
 		beanFactory.preInstantiateSingletons();
 	}
 
-
 	protected void finishRefresh() {
 
 	}
 
-
 	protected void resetCommonCaches() {
 	}
-
 
 	@Deprecated
 	public void destroy() {
 		close();
 	}
-
-
 
 	public void close() {
 		synchronized (this.applicationMonitor) {
@@ -182,7 +170,6 @@ public class ApplicationContext {
 		}
 	}
 
-
 	protected void doClose() {
 		if (this.active.get() && this.closed.compareAndSet(false, true)) {
 
@@ -198,7 +185,6 @@ public class ApplicationContext {
 			this.active.set(false);
 		}
 	}
-
 
 	protected void onClose() {
 		// For subclasses: do nothing by default.
@@ -243,10 +229,6 @@ public class ApplicationContext {
 		return getBeanFactory().isPrototype(name);
 	}
 
-	public boolean isTypeMatch(String name, Class<?> typeToMatch) {
-		return getBeanFactory().isTypeMatch(name, typeToMatch);
-	}
-
 	public Class<?> getType(String name) {
 
 		return getBeanFactory().getType(name);
@@ -272,22 +254,17 @@ public class ApplicationContext {
 		return getBeanFactory().getBeanDefinitionNames();
 	}
 
-	public String[] getBeanNamesForType(Class<?> type) {
+	public Set<String> getBeanNamesForType(Class<?> type) {
 		return getBeanFactory().getBeanNamesForType(type);
 	}
 
-	public String[] getBeanNamesForType(Class<?> type, boolean includeNonSingletons, boolean allowEagerInit) {
-		return getBeanFactory().getBeanNamesForType(type, includeNonSingletons, allowEagerInit);
-	}
-
 	public <T> Map<String, T> getBeansOfType(Class<T> type) {
-		return getBeanFactory().getBeansOfType(type);
+		return getBeanFactory().getBeans(type);
 	}
 
 	public boolean containsLocalBean(String name) {
 		return getBeanFactory().containsBean(name);
 	}
-
 
 	protected void refreshBeanFactory() {
 		destroyBeans();
@@ -301,7 +278,6 @@ public class ApplicationContext {
 
 	}
 
-
 	protected void loadBeanDefinitions(BeanFactory beanFactory) {
 		// Create a new XmlBeanDefinitionReader for the given BeanFactory.
 		BeanDefinitionReader beanDefinitionReader = new BeanDefinitionReader(beanFactory);
@@ -311,7 +287,6 @@ public class ApplicationContext {
 		loadBeanDefinitions(beanDefinitionReader);
 	}
 
-
 	protected void loadBeanDefinitions(BeanDefinitionReader reader) {
 		String[] configLocations = getConfigLocations();
 		if (configLocations != null) {
@@ -319,13 +294,11 @@ public class ApplicationContext {
 		}
 	}
 
-
 	protected void closeBeanFactory() {
 		if (beanFactory != null) {
 			beanFactory.destroy();
 		}
 	}
-
 
 	protected void destroyBeans() {
 		if (this.beanFactory != null) {
@@ -349,7 +322,6 @@ public class ApplicationContext {
 		this.beanFactory = beanFactory;
 	}
 
-
 	public List<Processor> getProcessors() {
 		return getBeanFactory().getProcessors();
 	}
@@ -369,5 +341,5 @@ public class ApplicationContext {
 	public PropertyResolverHandler getPropertyResolverHandler() {
 		return propertyResolverHandler;
 	}
-	
+
 }
