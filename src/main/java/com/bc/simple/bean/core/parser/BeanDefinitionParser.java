@@ -90,13 +90,14 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.BeanFactory;
+import com.bc.simple.bean.common.Resource;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.Constant;
 import com.bc.simple.bean.common.util.DomUtils;
 import com.bc.simple.bean.common.util.ObjectUtils;
 import com.bc.simple.bean.common.util.StringUtils;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.core.handler.HandlerProxy;
 import com.bc.simple.bean.core.support.SimpleException;
 
@@ -115,11 +116,14 @@ public class BeanDefinitionParser {
 
 	private final HandlerProxy handler;
 
+	private final Resource resource;
+	
 
-	public BeanDefinitionParser(BeanFactory beanFactory, Node root) {
+	public BeanDefinitionParser(BeanFactory beanFactory, Node root,Resource resource) {
 		this.beanFactory = beanFactory;
 		this.handler = new HandlerProxy(beanFactory);
 		this.root = root;
+		this.resource=resource;
 	}
 
 
@@ -127,7 +131,6 @@ public class BeanDefinitionParser {
 	public BeanDefinition parseBeanDefinitionNode(Node ele) {
 		return parseBeanDefinitionNode(ele, null);
 	}
-
 
 
 	protected BeanDefinition parseBeanDefinitionNode(Node ele, BeanDefinition containingBean) {
@@ -865,7 +868,10 @@ public class BeanDefinitionParser {
 		return node.getName().equals(Constant.DOC_BEAN) || node.getName().equals(Constant.DOC_BEANS)
 				|| node.getName().equals(Constant.DOC_ROOT) || node.getName().equals(Constant.DOC_IMPORT)
 				|| node.getName().equals(Constant.DOC_ALIAS);
-
 	}
 
+	public Resource getResource() {
+		return resource;
+	}
+	
 }

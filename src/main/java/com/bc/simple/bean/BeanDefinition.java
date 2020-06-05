@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.bc.simple.bean.common.Resource;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
-import com.bc.simple.bean.common.support.proxy.CommonInvocationHandler;
+import com.bc.simple.bean.common.support.proxy.SimpleInvocationHandler;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.StringUtils;
 import com.bc.simple.bean.core.support.AnnotationMetaData;
@@ -600,7 +600,7 @@ public class BeanDefinition {
 	
 	public boolean isCommonClassProxy() {
 		return this.handleClass != null 
-				&& CommonInvocationHandler.class.isAssignableFrom(this.handleClass);
+				&& SimpleInvocationHandler.class.isAssignableFrom(this.handleClass);
 	}
 	
 	public boolean isClassProxy() {

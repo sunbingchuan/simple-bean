@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.annotation.Autowired;
 import com.bc.simple.bean.common.annotation.Bean;
 import com.bc.simple.bean.common.annotation.Order;
@@ -17,6 +16,7 @@ import com.bc.simple.bean.common.util.AnnotationUtils;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.Constant;
 import com.bc.simple.bean.common.util.StringUtils;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.core.support.AnnotationMetaData.MethodMetaData;
 
 public class ConfigurationClassProcessor implements Processor {

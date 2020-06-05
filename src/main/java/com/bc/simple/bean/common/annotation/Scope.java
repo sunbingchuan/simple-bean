@@ -30,7 +30,7 @@ import java.lang.annotation.Target;
  *
  * <p>
  * To register additional custom scopes, see
- * {@link org.Factory.beans.factory.config.CustomScopeConfigurer CustomScopeConfigurer}.
+ * {@link org.Template.beans.factory.config.CustomScopeConfigurer CustomScopeConfigurer}.
  *
  * @author Mark Fisher
  * @author Chris Beams

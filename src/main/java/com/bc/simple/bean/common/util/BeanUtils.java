@@ -38,9 +38,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.bc.simple.bean.ApplicationContext;
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.annotation.Component;
 import com.bc.simple.bean.common.annotation.Qualifier;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.core.asm.ClassReader;
 import com.bc.simple.bean.core.asm.ClassVisitor;
 import com.bc.simple.bean.core.asm.Label;
@@ -99,10 +99,10 @@ public class BeanUtils {
 	private static final Map<Class<?>, Class<?>> primitiveTypeToWrapperMap = new IdentityHashMap<>(8);
 
 
-	private static final Map<String, Class<?>> primitiveTypeNameMap = new HashMap<>(32);
+	public static final Map<String, Class<?>> primitiveTypeNameMap = new HashMap<>(32);
 
 
-	private static final Map<String, Class<?>> commonClassCache = new HashMap<>(64);
+	public static final Map<String, Class<?>> commonClassCache = new HashMap<>(64);
 
 
 	private static final Set<Class<?>> javaLanguageInterfaces;
@@ -144,10 +144,10 @@ public class BeanUtils {
 				StackTraceElement.class, StackTraceElement[].class);
 		registerCommonClasses(Enum.class, Iterable.class, Iterator.class, Enumeration.class, Collection.class,
 				List.class, Set.class, Map.class, Map.Entry.class, Optional.class);
-
 		Class<?>[] javaLanguageInterfaceArray = {Serializable.class, Externalizable.class, Closeable.class,
 				AutoCloseable.class, Cloneable.class, Comparable.class};
-		registerCommonClasses(javaLanguageInterfaceArray);
+		registerCommonClasses(Serializable.class, Externalizable.class, Closeable.class,
+				AutoCloseable.class, Cloneable.class, Comparable.class);
 		javaLanguageInterfaces = new HashSet<>(Arrays.asList(javaLanguageInterfaceArray));
 
 		qualifierTypes.add(Qualifier.class);
@@ -176,8 +176,8 @@ public class BeanUtils {
 	}
 
 
-	@SuppressWarnings("unchecked")
-	public static <T> T instantiateClass(Class<?> clazz, Class<T> assignableTo) {
+
+	public static <T> T instantiateClass(Class<T> clazz, Class<T> assignableTo) {
 		return (T) instantiateClass(clazz);
 	}
 
@@ -200,7 +200,6 @@ public class BeanUtils {
 
 	public static BeanDefinition createBeanDefinition(String className, ClassLoader classLoader)
 			throws ClassNotFoundException {
-
 		BeanDefinition bd = new BeanDefinition();
 		if (className != null) {
 			bd.setBeanClassName(className);
@@ -305,7 +304,7 @@ public class BeanUtils {
 	public static String generateAnnotatedBeanName(BeanDefinition definition, BeanFactory registry) {
 		Class<?> beanClass = definition.getBeanClass();
 		if (beanClass != null) {
-			Map<Class<?>, Map<String, Object>> attrs = AnnotationUtils.parseAnnotation(beanClass);
+			Map<Class<?>, Map<String, Object>> attrs = AnnotationUtils.transferAnnotation(beanClass);
 			String beanName = null;
 			Map<String, Object> attr = attrs.get(Component.class);
 			if (attr != null) {
@@ -430,19 +429,6 @@ public class BeanUtils {
 
 	public static boolean isPrimitiveOrWrapper(Class<?> clazz) {
 		return (clazz.isPrimitive() || isPrimitiveWrapper(clazz));
-	}
-
-	public static <R> R skipException(ErrorSkiper<R> errorSkiper) {
-		try {
-			return errorSkiper.skip();
-		} catch (Exception e) {
-			// ignore
-		}
-		return null;
-	}
-
-	public interface ErrorSkiper<R> {
-		R skip() throws Exception;
 	}
 
 
@@ -824,7 +810,9 @@ public class BeanUtils {
 	}
 
 	public static String[] getParameterNames(Executable executable) {
-
+		if (executable.getParameterCount()==0) {
+			return new String[0];
+		}
 		Parameter[] parameters = executable.getParameters();
 		Class<?> owner = executable.getDeclaringClass();
 		String[] parameterNames = null;
@@ -920,14 +908,10 @@ public class BeanUtils {
 					}
 				}, 0);
 				parameterNames = cache.get(executable);
+				parameterNamesCache.put(owner, cache);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-		}
-		if (StringUtils.isEmpty(parameterNames[0])) {
-			Map<Member, String[]> cache = new HashMap<>();
-			cache.put(executable, parameterNames);
-			parameterNamesCache.put(owner, cache);
 		}
 		return parameterNames;
 	}

@@ -25,14 +25,16 @@ import org.apache.commons.logging.LogFactory;
 import com.bc.simple.bean.BeanDefinition;
 import com.bc.simple.bean.common.annotation.Autowired;
 import com.bc.simple.bean.common.support.ConvertService;
-import com.bc.simple.bean.common.support.proxy.CommonInvocationHandler;
 import com.bc.simple.bean.common.support.proxy.Proxy;
+import com.bc.simple.bean.common.support.proxy.ProxyHelper;
+import com.bc.simple.bean.common.support.proxy.SimpleInvocationHandler;
 import com.bc.simple.bean.common.util.AnnotationUtils;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.Constant;
 import com.bc.simple.bean.common.util.ObjectUtils;
 import com.bc.simple.bean.common.util.StringUtils;
-import com.bc.simple.bean.core.AbstractBeanFactory;
+import com.bc.simple.bean.core.BeanFactory;
+import com.bc.simple.bean.core.processor.Processor;
 import com.bc.simple.bean.core.support.DependencyDescriptor;
 import com.bc.simple.bean.core.support.SimpleException;
 
@@ -40,7 +42,7 @@ public class BeanCreateWorkshop extends Workshop {
 
 	private Log log = LogFactory.getLog(this.getClass());
 
-	public BeanCreateWorkshop(AbstractBeanFactory factory) {
+	public BeanCreateWorkshop(BeanFactory factory) {
 		super(factory);
 	}
 
@@ -93,15 +95,12 @@ public class BeanCreateWorkshop extends Workshop {
 	private Object instantiateUsingFactoryMethod(BeanDefinition mbd, Object[] explicitArgs) {
 		FactoryEntry fe = new FactoryEntry();
 		String beanName = mbd.getBeanName();
-
 		initFactoryEntry(fe, mbd);
-
 		if (explicitArgs != null) {
 			fe.args = explicitArgs;
 		} else {
 			resolveCachedFactoryArgs(mbd, fe);
 		}
-
 		if (fe.factoryMethod == null || fe.args == null) {
 			// Need to determine the factory method...
 			// Try all methods with this name to see if they match the given arguments.
@@ -109,9 +108,9 @@ public class BeanCreateWorkshop extends Workshop {
 			if (candidateList.size() == 1 && explicitArgs == null && !mbd.hasConstructorArgumentValues()) {
 				Method uniqueCandidate = candidateList.get(0);
 				if (uniqueCandidate.getParameterCount() == 0) {
-					factory.cacheConstructorAndArgs(mbd, uniqueCandidate, AbstractBeanFactory.EMPTY_ARGS);
+					factory.cacheConstructorAndArgs(mbd, uniqueCandidate, BeanFactory.EMPTY_ARGS);
 					fe.factoryMethod = uniqueCandidate;
-					fe.args = AbstractBeanFactory.EMPTY_ARGS;
+					fe.args = BeanFactory.EMPTY_ARGS;
 					return instantiateFactoryMethod(beanName, mbd, fe);
 				}
 			}
@@ -377,8 +376,8 @@ public class BeanCreateWorkshop extends Workshop {
 			if (candidates.length == 1 && explicitArgs == null && !mbd.hasConstructorArgumentValues()) {
 				Constructor<?> uniqueCandidate = candidates[0];
 				if (uniqueCandidate.getParameterCount() == 0) {
-					factory.cacheConstructorAndArgs(mbd, uniqueCandidate, AbstractBeanFactory.EMPTY_ARGS);
-					return instantiate(beanName, mbd, uniqueCandidate, AbstractBeanFactory.EMPTY_ARGS);
+					factory.cacheConstructorAndArgs(mbd, uniqueCandidate, BeanFactory.EMPTY_ARGS);
+					return instantiate(beanName, mbd, uniqueCandidate, BeanFactory.EMPTY_ARGS);
 				}
 			}
 			// Need to resolve the constructor.
@@ -446,7 +445,7 @@ public class BeanCreateWorkshop extends Workshop {
 		}
 	}
 
-	private Object instantiate(BeanDefinition bd, AbstractBeanFactory factory) {
+	private Object instantiate(BeanDefinition bd, BeanFactory factory) {
 		// Don't override the class with CGLIB if no overrides.
 		if (!bd.hasMethodOverrides() && !bd.isClassProxy()) {
 			Constructor<?> constructorToUse;
@@ -478,7 +477,7 @@ public class BeanCreateWorkshop extends Workshop {
 
 	}
 
-	private Object instantiateWithMethodInjection(BeanDefinition bd, AbstractBeanFactory owner) {
+	private Object instantiateWithMethodInjection(BeanDefinition bd, BeanFactory owner) {
 		Class<?> beanClass = bd.resolveBeanClass();
 		if (!bd.isOverrideMethodParsed()) {
 			Map<Method, InvocationHandler> overrideMethods = new HashMap<>();
@@ -487,7 +486,7 @@ public class BeanCreateWorkshop extends Workshop {
 				parseOveride(override, overrideMethods, beanClass);
 			}
 			if (bd.isCommonClassProxy()) {
-				CommonInvocationHandler.registerAll(overrideMethods);
+				SimpleInvocationHandler.registerAll(overrideMethods);
 			} else if (overrideMethods.size() > 0) {
 				bd.getOverrideMethods().putAll(overrideMethods);
 			}
@@ -495,9 +494,9 @@ public class BeanCreateWorkshop extends Workshop {
 		}
 		Object instance;
 		if (bd.isClassProxy()) {
-			instance = Proxy.proxy(beanClass, bd.getHandleClass());
+			instance = ProxyHelper.proxy(beanClass, bd.getHandleClass());
 		} else {
-			instance = Proxy.instance(new InvocationHandler() {
+			instance = ProxyHelper.instance(new InvocationHandler() {
 				@Override
 				public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 					return findHandler(method, bd.getOverrideMethods(), beanClass).invoke(proxy, method, args);
@@ -668,7 +667,7 @@ public class BeanCreateWorkshop extends Workshop {
 		synchronized (mbd.postProcessingLock) {
 			if (!mbd.postProcessed) {
 				try {
-					factory.applyMergedBeanDefinitionPostProcessors(mbd);
+					applyMergedBeanDefinitionPostProcessors(mbd);
 				} catch (Throwable ex) {
 					log.info(mbd.getResourceDescription() + " " + beanName + " "
 							+ "Post-processing of merged bean definition failed", ex);
@@ -676,11 +675,17 @@ public class BeanCreateWorkshop extends Workshop {
 				mbd.postProcessed = true;
 			}
 		}
-		factory.registerMonitorBeanIfNecessary(beanName, bean, mbd);
+		factory.registerMonitorBean(beanName, bean, mbd);
 		if (mbd.isSingleton()) {
 			factory.addSingleton(beanName, bean);
 		}
 		storeRoom.setZ(bean);
 	}
 
+	public void applyMergedBeanDefinitionPostProcessors(BeanDefinition mbd) {
+		for (Processor bp : factory.getProcessors()) {
+			bp.postProcessMergedBeanDefinition(mbd);
+		}
+	}
+	
 }

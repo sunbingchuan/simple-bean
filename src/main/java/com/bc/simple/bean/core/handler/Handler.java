@@ -1,8 +1,8 @@
 package com.bc.simple.bean.core.handler;
 
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
+import com.bc.simple.bean.core.BeanFactory;
 
 /**
  * this interface is stand for the class which is implement it and is used to

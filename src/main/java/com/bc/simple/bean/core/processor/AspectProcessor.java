@@ -9,12 +9,12 @@ import java.util.Collection;
 import java.util.List;
 
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.annotation.Around;
 import com.bc.simple.bean.common.annotation.Aspect;
-import com.bc.simple.bean.common.support.proxy.CommonInvocationHandler;
+import com.bc.simple.bean.common.support.proxy.SimpleInvocationHandler;
 import com.bc.simple.bean.common.util.PatternUtils;
 import com.bc.simple.bean.common.util.StringUtils;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.core.support.AnnotationMetaData;
 
 public class AspectProcessor implements Processor {
@@ -61,8 +61,8 @@ public class AspectProcessor implements Processor {
 					if (pointCut.matchMethod(m)) {
 						InvocationHandler handler=getHandler(pointCut);
 						if (beanDefinition.getHandleClass()!=null
-								&&CommonInvocationHandler.class.isAssignableFrom(beanDefinition.getHandleClass())) {
-							CommonInvocationHandler.register(m, handler);
+								&&SimpleInvocationHandler.class.isAssignableFrom(beanDefinition.getHandleClass())) {
+							SimpleInvocationHandler.register(m, handler);
 						}else {
 							beanDefinition.getOverrideMethods().put(m, handler);
 						}
@@ -70,11 +70,11 @@ public class AspectProcessor implements Processor {
 				}
 				for (Constructor<?> constructor:beanClass.getDeclaredConstructors()) {
 					if (pointCut.matchConstructor(constructor)) {
-						beanDefinition.setHandleClass(CommonInvocationHandler.class);
+						beanDefinition.setHandleClass(SimpleInvocationHandler.class);
 						InvocationHandler handler=getHandler(pointCut);
-						CommonInvocationHandler.register(constructor, handler);
+						SimpleInvocationHandler.register(constructor, handler);
 						if (beanDefinition.getOverrideMethods().size()>0) {
-							CommonInvocationHandler.registerAll(beanDefinition.getOverrideMethods());
+							SimpleInvocationHandler.registerAll(beanDefinition.getOverrideMethods());
 							beanDefinition.getOverrideMethods().clear();
 						}
 					}

@@ -5,15 +5,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.bc.simple.bean.core.BeanFactory;
+import com.bc.simple.bean.core.assembler.DependencyResolveAssembler;
+import com.bc.simple.bean.core.assembler.GetBeanAssembler;
+import com.bc.simple.bean.core.assembler.ParserValueAssembler;
 import com.bc.simple.bean.core.parser.BeanDefinitionReader;
-import com.bc.simple.bean.core.processor.CommonProcessor;
 import com.bc.simple.bean.core.processor.Processor;
 import com.bc.simple.bean.core.support.Environment;
-import com.bc.simple.bean.core.support.PropertyResolverHandler;
+import com.bc.simple.bean.core.support.PropertyResolver;
+import com.bc.simple.bean.core.support.SimpleException;
 
 public class ApplicationContext {
 
-	private final PropertyResolverHandler propertyResolverHandler = new PropertyResolverHandler();
+	private final PropertyResolver propertyResolver = new PropertyResolver();
 
 	private Environment environment;
 
@@ -63,21 +67,10 @@ public class ApplicationContext {
 				
 				registerBeanPostProcessors(beanFactory);
 
-				// Initialize other special beans in specific context subclasses.
-				onRefresh();
-
-				// Instantiate all remaining (non-lazy-init) singletons.
-				finishBeanFactoryInitialization(beanFactory);
-
 				// Last step: publish corresponding event.
-				finishRefresh();
 			} catch (Throwable e) {
-				e.printStackTrace();
-			} finally {
-				// Reset common introspection caches in Spring's core, since we
-				// might not ever need metadata for singleton beans anymore...
-				resetCommonCaches();
-			}
+				throw new SimpleException("content refresh failed!",e);
+			} 
 		}
 	}
 
@@ -96,9 +89,6 @@ public class ApplicationContext {
 	}
 
 	protected void prepareBeanFactory(BeanFactory beanFactory) {
-		// Configure the bean factory with context callbacks.
-		beanFactory.addProcessor(new CommonProcessor());
-		// MessageSource registered (and found for autowiring) as a bean.
 		beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);
 		beanFactory.registerResolvableDependency(ApplicationContext.class, this);
 	}
@@ -130,27 +120,7 @@ public class ApplicationContext {
 		this.lifecycleProcessor = beanFactory.getBean(Processor.class);
 	}
 
-	protected void onRefresh() {
-		// For subclasses: do nothing by default.
-	}
 
-	protected void finishBeanFactoryInitialization(BeanFactory beanFactory) {
-		// Allow for caching all bean definition metadata, not expecting further
-		// changes.
-		beanFactory.freezeConfiguration();
-
-		// Instantiate all remaining (non-lazy-init) singletons.
-		beanFactory.preInstantiateSingletons();
-	}
-
-	protected void finishRefresh() {
-
-	}
-
-	protected void resetCommonCaches() {
-	}
-
-	@Deprecated
 	public void destroy() {
 		close();
 	}
@@ -172,23 +142,14 @@ public class ApplicationContext {
 
 	protected void doClose() {
 		if (this.active.get() && this.closed.compareAndSet(false, true)) {
-
 			// Destroy all cached singletons in the context's BeanFactory.
 			destroyBeans();
-
 			// Close the state of this context itself.
 			closeBeanFactory();
-
-			// Let subclasses do some final clean-up if they wish...
-			onClose();
-
 			this.active.set(false);
 		}
 	}
 
-	protected void onClose() {
-		// For subclasses: do nothing by default.
-	}
 
 	// ---------------------------------------------------------------------
 	// Implementation of BeanFactory interface
@@ -211,7 +172,6 @@ public class ApplicationContext {
 	}
 
 	public <T> T getBean(Class<T> requiredType, Object... args) {
-
 		return getBeanFactory().getBean(requiredType, args);
 	}
 
@@ -220,17 +180,14 @@ public class ApplicationContext {
 	}
 
 	public boolean isSingleton(String name) {
-
 		return getBeanFactory().isSingleton(name);
 	}
 
 	public boolean isPrototype(String name) {
-
 		return getBeanFactory().isPrototype(name);
 	}
 
 	public Class<?> getType(String name) {
-
 		return getBeanFactory().getType(name);
 	}
 
@@ -269,7 +226,7 @@ public class ApplicationContext {
 	protected void refreshBeanFactory() {
 		destroyBeans();
 		closeBeanFactory();
-		BeanFactory beanFactory = new BeanFactory();
+		BeanFactory beanFactory=buildBeanFactory();
 		beanFactory.setContext(this);
 		loadBeanDefinitions(beanFactory);
 		synchronized (this.beanFactoryMonitor) {
@@ -277,13 +234,18 @@ public class ApplicationContext {
 		}
 
 	}
+	
+	protected BeanFactory buildBeanFactory() {
+		BeanFactory beanFactory = new BeanFactory();
+		beanFactory.registerAssembler(new GetBeanAssembler(), beanFactory);
+		beanFactory.registerAssembler(new DependencyResolveAssembler(), beanFactory);
+		beanFactory.registerAssembler(new ParserValueAssembler(), beanFactory);
+		return beanFactory;
+	}
 
 	protected void loadBeanDefinitions(BeanFactory beanFactory) {
-		// Create a new XmlBeanDefinitionReader for the given BeanFactory.
 		BeanDefinitionReader beanDefinitionReader = new BeanDefinitionReader(beanFactory);
 		beanDefinitionReader.setBeanClassLoader(Thread.currentThread().getContextClassLoader());
-		// Allow a subclass to provide custom initialization of the reader,
-		// then proceed with actually loading the bean definitions.
 		loadBeanDefinitions(beanDefinitionReader);
 	}
 
@@ -302,7 +264,7 @@ public class ApplicationContext {
 
 	protected void destroyBeans() {
 		if (this.beanFactory != null) {
-			this.beanFactory.destroySingletons();
+			this.beanFactory.destroyBeans();
 		}
 	}
 
@@ -338,8 +300,10 @@ public class ApplicationContext {
 		this.configLocations = configLocations;
 	}
 
-	public PropertyResolverHandler getPropertyResolverHandler() {
-		return propertyResolverHandler;
+	public PropertyResolver getPropertyResolver() {
+		return propertyResolver;
 	}
 
+	
+	
 }

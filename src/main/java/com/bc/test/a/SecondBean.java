@@ -1,7 +1,7 @@
 package com.bc.test.a;
 
 import com.bc.simple.bean.ApplicationContext;
-import com.bc.simple.bean.BeanFactory;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.common.annotation.Autowired;
 import com.bc.simple.bean.common.annotation.Component;
 

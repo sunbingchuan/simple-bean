@@ -142,7 +142,6 @@ public class StringUtils {
 			return new String[] {str};
 		}
 		while ((index = str.indexOf(delimiter, pos)) >= 0) {
-
 			if (index == 0) {
 				pos = index + delimiter.length();
 				continue;
@@ -153,7 +152,6 @@ public class StringUtils {
 		if (pos <= str.length()) {
 			result.add(str.substring(pos));
 		}
-
 		return result.toArray(new String[result.size()]);
 	}
 
@@ -418,7 +416,7 @@ public class StringUtils {
 	}
 
 
-	public static String collectionToDelimitedString(Collection<?> coll, String delim, String prefix, String suffix) {
+	public static String collectionToDelimitedString(Collection<?> coll, String delim) {
 
 		if (coll == null || coll.size() == 0) {
 			return "";
@@ -427,7 +425,7 @@ public class StringUtils {
 		StringBuilder sb = new StringBuilder();
 		Iterator<?> it = coll.iterator();
 		while (it.hasNext()) {
-			sb.append(prefix).append(it.next()).append(suffix);
+			sb.append(it.next());
 			if (it.hasNext()) {
 				sb.append(delim);
 			}

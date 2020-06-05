@@ -1,13 +1,13 @@
 package com.bc.simple.bean.core.workshop;
 
-import com.bc.simple.bean.core.AbstractBeanFactory;
+import com.bc.simple.bean.core.BeanFactory;
 
 public abstract class Workshop {
-	protected AbstractBeanFactory factory;
+	protected BeanFactory factory;
 
 	private Workshop next;
 
-	public Workshop(AbstractBeanFactory factory) {
+	public Workshop(BeanFactory factory) {
 		this.factory = factory;
 	}
 

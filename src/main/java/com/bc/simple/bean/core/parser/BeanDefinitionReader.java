@@ -1,18 +1,29 @@
 package com.bc.simple.bean.core.parser;
 
+import static com.bc.simple.bean.common.util.Constant.ATTR_ALIAS;
+import static com.bc.simple.bean.common.util.Constant.ATTR_NAME;
+import static com.bc.simple.bean.common.util.Constant.ATTR_RESOURCE;
+import static com.bc.simple.bean.common.util.Constant.DOC_ALIAS;
+import static com.bc.simple.bean.common.util.Constant.DOC_BEAN;
+import static com.bc.simple.bean.common.util.Constant.DOC_BEANS;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import com.bc.simple.bean.BeanFactory;
+import com.bc.simple.bean.BeanDefinition;
 import com.bc.simple.bean.common.Resource;
 import com.bc.simple.bean.common.config.ConfigLoader;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
+import com.bc.simple.bean.common.util.Constant;
+import com.bc.simple.bean.common.util.StringUtils;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.core.support.SimpleException;
 
 
@@ -20,6 +31,8 @@ public class BeanDefinitionReader {
 
 	private Log log = LogFactory.getLog(this.getClass());
 
+	private BeanDefinitionParser parser;
+	
 	private final BeanFactory beanFactory;
 
 	private ClassLoader beanClassLoader;
@@ -113,11 +126,102 @@ public class BeanDefinitionReader {
 
 
 	public int registerBeanDefinitions(Node doc, Resource resource) {
-		BeanDefinitionDocumentReader documentReader =
-				new BeanDefinitionDocumentReader(this, this.getBeanFactory(), resource);
 		int countBefore = getBeanFactory().getBeanDefinitionCount();
-		documentReader.registerBeanDefinitions(doc);
+		doRegisterBeanDefinitions(doc,resource);
 		return this.getBeanFactory().getBeanDefinitionCount() - countBefore;
+	}
+
+
+	protected void doRegisterBeanDefinitions(Node root,Resource resource) {
+		this.parser = new BeanDefinitionParser(beanFactory, root,resource);
+		parseBeanDefinitions(root, this.parser);
+	}
+
+
+	protected void parseBeanDefinitions(Node root, BeanDefinitionParser parser) {
+		if (parser.isDefaultNamespace(root)) {
+			List<Node> nl = root.getChilds();
+			for (Node node : nl) {
+				if (parser.isDefaultNamespace(node)) {
+					parseDefaultNode(node, parser);
+				} else {
+					parser.parseCustomNode(node);
+				}
+			}
+		} else {
+			parser.parseCustomNode(root);
+		}
+	}
+	
+	private void parseDefaultNode(Node ele, BeanDefinitionParser parser) {
+		if (parser.nodeNameEquals(ele, Constant.DOC_IMPORT)) {
+			importBeanDefinitionResource(ele);
+		} else if (parser.nodeNameEquals(ele, DOC_ALIAS)) {
+			processAliasRegistration(ele);
+		} else if (parser.nodeNameEquals(ele, DOC_BEAN)) {
+			processBeanDefinition(ele, parser);
+		} else if (parser.nodeNameEquals(ele, DOC_BEANS)) {
+			doRegisterBeanDefinitions(ele,parser.getResource());
+		}
+	}
+	protected void importBeanDefinitionResource(Node ele) {
+		String location = ele.attrString(ATTR_RESOURCE);
+		if (!StringUtils.hasText(location)) {
+			return;
+		}
+
+		// Discover whether the location is an absolute or relative URI
+		boolean absoluteLocation = false;
+		// just not support
+		absoluteLocation = StringUtils.isUrl(location);
+
+		// Absolute or relative?
+		if (absoluteLocation) {
+			try {
+				loadBeanDefinitions(location);
+			} catch (Exception ex) {
+				// ignore
+			}
+		} else {
+			Resource relativeResource = this.parser.getResource().createRelative(location);
+			if (relativeResource.exists()) {
+				loadBeanDefinitions(relativeResource);
+			} else {
+				String baseLocation = this.parser.getResource().getUri().toString();
+				loadBeanDefinitions(StringUtils.applyRelativePath(baseLocation, location));
+			}
+		}
+	}
+	protected void processAliasRegistration(Node ele) {
+		String name = ele.attrString(ATTR_NAME);
+		String alias = ele.attrString(ATTR_ALIAS);
+		boolean valid = true;
+		if (!StringUtils.hasText(name)) {
+			valid = false;
+		}
+		if (!StringUtils.hasText(alias)) {
+			valid = false;
+		}
+		if (valid) {
+			try {
+				this.beanFactory.registerAlias(name, alias);
+			} catch (Exception ex) {
+				// ignore
+			}
+		}
+	}
+
+
+	protected void processBeanDefinition(Node ele, BeanDefinitionParser parser) {
+		BeanDefinition bd = parser.parseBeanDefinitionNode(ele);
+		if (bd != null) {
+			try {
+				// Register the final decorated instance.
+				this.beanFactory.registerBeanDefinition(bd.getBeanName(), bd);
+			} catch (Exception ex) {
+				log.info("Failed to register bean definition with name '" + bd.getBeanName() + "'" + ele, ex);
+			}
+		}
 	}
 
 }

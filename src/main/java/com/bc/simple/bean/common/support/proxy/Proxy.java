@@ -4,13 +4,9 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -19,14 +15,15 @@ import org.apache.commons.logging.LogFactory;
 
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.core.asm.ClassReader;
+import com.bc.simple.bean.core.asm.ClassReader.MethodFilter;
 import com.bc.simple.bean.core.asm.ClassVisitor;
 import com.bc.simple.bean.core.asm.ClassWriter;
 import com.bc.simple.bean.core.asm.MethodVisitor;
 import com.bc.simple.bean.core.asm.Opcodes;
 import com.bc.simple.bean.core.asm.Type;
-import com.bc.simple.bean.core.asm.ClassReader.MethodFilter;
+import com.bc.simple.bean.core.support.SimpleException;
 
-@SuppressWarnings({"rawtypes"})
+@SuppressWarnings({ "rawtypes" })
 public class Proxy {
 
 	private static Log log = LogFactory.getLog(Proxy.class);
@@ -35,9 +32,7 @@ public class Proxy {
 	private static final ClassLoader DEFAULT_CLASSLOADER = Proxy.class.getClassLoader();
 	public static final String LINK_STR = "$$";
 	public static final String PROXY_SUFFIX = "$SUPER";
-	public static final Proxy proxy = new Proxy();
 	private static final Map<String, Class<?>> classCache = new ConcurrentHashMap<>(256);
-
 
 	private ClassLoader classLoader = DEFAULT_CLASSLOADER;
 	static {
@@ -52,14 +47,13 @@ public class Proxy {
 		classLoaderDefineClassMethod = classLoaderDefineClass;
 	}
 
-
 	/**
 	 * @param handler
 	 * @param interfaceClasses
 	 * @return
 	 * @see Proxy#instance(InvocationHandler, Class, Method[], Class[])
 	 */
-	public static Object instance(InvocationHandler handler, Class<?>[] interfaceClasses) {
+	public Object instance(InvocationHandler handler, Class<?>[] interfaceClasses) {
 		return instance(handler, Object.class, interfaceClasses);
 	}
 
@@ -70,18 +64,22 @@ public class Proxy {
 	 * @see Proxy#instance(InvocationHandler, Class, Method[], Class[])
 	 * @return
 	 */
-	public static Object instance(InvocationHandler handler, Class<?> parent, Class<?>[] interfaceClasses) {
+	public Object instance(InvocationHandler handler, Class<?> parent, Class<?>[] interfaceClasses) {
 		return instance(handler, parent, null, interfaceClasses);
 	}
 
 	/**
-	 * @param handler the InvocationHandler
-	 * @param parent the class to be extended
-	 * @param overrides the method of parent to be overrided or aoped
-	 * @param interfaceClasses the interface to implements
+	 * @param handler
+	 *            the InvocationHandler
+	 * @param parent
+	 *            the class to be extended
+	 * @param overrides
+	 *            the method of parent to be overrided or aoped
+	 * @param interfaceClasses
+	 *            the interface to implements
 	 * @return
 	 */
-	public static Object instance(InvocationHandler handler, Class<?> parent, Method[] overrides,
+	public Object instance(InvocationHandler handler, Class<?> parent, Method[] overrides,
 			Class<?>[] interfaceClasses) {
 		try {
 			String parentName = parent.getCanonicalName();
@@ -90,12 +88,12 @@ public class Proxy {
 			}
 			String className = BeanUtils.convertClassNameToResourcePath(parentName) + LINK_STR
 					+ Integer.toHexString(handler.hashCode());
-			byte[] bytes = proxy.generateClass(Factory.class, className, parent, overrides, interfaceClasses);
-			Class clazz = proxy.defineClass(BeanUtils.convertResourcePathToClassName(className), bytes, 0, bytes.length,
+			byte[] bytes = generateClass(Template.class, className, parent, overrides, interfaceClasses);
+			Class clazz = defineClass(BeanUtils.convertResourcePathToClassName(className), bytes, 0, bytes.length,
 					null);
-			Object factory = clazz.newInstance();
-			proxy.setInvoker(factory, handler);
-			return factory;
+			Object bean = clazz.newInstance();
+			setInvoker(bean, handler);
+			return bean;
 		} catch (Exception e) {
 			log.error("instance failed!", e);
 		}
@@ -128,21 +126,20 @@ public class Proxy {
 		return writer.toByteArray();
 	}
 
-	public static Object proxy(Class<?> target, Class<? extends InvocationHandler> handler) {
+	public Object proxy(Class<?> target, Class<? extends InvocationHandler> handler) {
 		try {
-			String className =
-					BeanUtils.convertClassNameToResourcePath(target.getCanonicalName()) + LINK_STR + handler.hashCode();
+			String className = BeanUtils.convertClassNameToResourcePath(target.getCanonicalName()) + LINK_STR
+					+ handler.hashCode();
 			Class clazz;
 			if (classCache.containsKey(className)) {
 				clazz = classCache.get(className);
 			} else {
-				byte[] bytes = proxy.generateClass(target, className, handler);
-				clazz = proxy.defineClass(BeanUtils.convertResourcePathToClassName(className), bytes, 0, bytes.length,
-						null);
+				byte[] bytes = generateClass(target, className, handler);
+				clazz = defineClass(BeanUtils.convertResourcePathToClassName(className), bytes, 0, bytes.length, null);
 				classCache.put(className, clazz);
 			}
-			Object factory = clazz.newInstance();
-			return factory;
+			Object bean = clazz.newInstance();
+			return bean;
 		} catch (Exception e) {
 			log.error("proxy failed!", e);
 		}
@@ -151,10 +148,10 @@ public class Proxy {
 
 	private byte[] generateClass(Class<?> target, String className, Class<? extends InvocationHandler> handler)
 			throws IOException {
-		String[] interfaces =
-				Arrays.asList(target.getInterfaces()).stream().map(Type::getInternalName).toArray(String[]::new);
+		String[] interfaces = Arrays.asList(target.getInterfaces()).stream().map(Type::getInternalName)
+				.toArray(String[]::new);
 		ClassWriter writer = new ClassWriter(0);
-		new ClassReader(Factory.class.getName()).setClassName(className).setMethodFilter(new MethodFilter() {
+		new ClassReader(Template.class.getName()).setClassName(className).setMethodFilter(new MethodFilter() {
 			@Override
 			public MethodVisitor visitMethod(ClassReader classReader, ClassVisitor classVisitor, int access,
 					String name, String descriptor, String signature, String[] exceptions) {
@@ -209,10 +206,10 @@ public class Proxy {
 			methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "newInstance",
 					"()Ljava/lang/Object;", false);
 			methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, Type.getInternalName(InvocationHandler.class));
-			methodVisitor.visitFieldInsn(Opcodes.PUTFIELD, className, "invocationHandler$FACTORY",
+			methodVisitor.visitFieldInsn(Opcodes.PUTFIELD, className, "invocationHandler$TEMPLATE",
 					"Ljava/lang/reflect/InvocationHandler;");
 			methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
-			methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL, className, "init$FACTORY", "()V", false);
+			methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL, className, "init$TEMPLATE", "()V", false);
 			int count = constructor.getParameterCount();
 			methodVisitor.visitMaxs(3, count + 3);
 			if (count == 1 && constructor.getParameterTypes()[0].isArray()
@@ -224,7 +221,7 @@ public class Proxy {
 				methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
 				methodVisitor.visitVarInsn(Opcodes.ALOAD, 2);
 				methodVisitor.visitVarInsn(Opcodes.ALOAD, 1);
-				methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "invoke$FACTORY",
+				methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "invoke$TEMPLATE",
 						"(Ljava/lang/reflect/Executable;[Ljava/lang/Object;)Ljava/lang/Object;", false);
 			} else {
 				newArray(constructor, methodVisitor, count);
@@ -235,18 +232,21 @@ public class Proxy {
 				methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
 				methodVisitor.visitVarInsn(Opcodes.ALOAD, count + 2);
 				methodVisitor.visitVarInsn(Opcodes.ALOAD, count + 1);
-				methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "invoke$FACTORY",
+				methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "invoke$TEMPLATE",
 						"(Ljava/lang/reflect/Executable;[Ljava/lang/Object;)Ljava/lang/Object;", false);
 			}
 			methodVisitor.visitInsn(Opcodes.RETURN);
 		}
 	}
 
-	public void setInvoker(Object factory, InvocationHandler invoker) throws NoSuchMethodException, SecurityException,
-			IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-		Method method = factory.getClass().getDeclaredMethod("setInvocationHandler$FACTORY",
-				new Class<?>[] {InvocationHandler.class});
-		method.invoke(factory, invoker);
+	public void setInvoker(Object bean, InvocationHandler invoker) {
+		try {
+			Method method = bean.getClass().getDeclaredMethod("setInvocationHandler$TEMPLATE",
+					new Class<?>[] { InvocationHandler.class });
+			method.invoke(bean, invoker);
+		} catch (Exception e) {
+			throw new SimpleException(e);
+		}
 	}
 
 	private void implInterfaces(ClassWriter writer, Class<?>[] interfaceClasses, String className) {
@@ -291,13 +291,12 @@ public class Proxy {
 		methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL, Type.getInternalName(parent), "<init>", "()V", false);
 		methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
 		methodVisitor.visitInsn(Opcodes.ACONST_NULL);
-		methodVisitor.visitFieldInsn(Opcodes.PUTFIELD, className, "invocationHandler$FACTORY",
+		methodVisitor.visitFieldInsn(Opcodes.PUTFIELD, className, "invocationHandler$TEMPLATE",
 				"Ljava/lang/reflect/InvocationHandler;");
 		methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
-		methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL, className, "init$FACTORY", "()V", false);
+		methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL, className, "init$TEMPLATE", "()V", false);
 		methodVisitor.visitInsn(Opcodes.RETURN);
 	}
-
 
 	private void redirectSuper(Method method, MethodVisitor methodVisitor, String className) {
 		int count = method.getParameterCount();
@@ -326,7 +325,7 @@ public class Proxy {
 			methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
 			methodVisitor.visitVarInsn(Opcodes.ALOAD, 2);
 			methodVisitor.visitVarInsn(Opcodes.ALOAD, 1);
-			methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "invoke$FACTORY",
+			methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "invoke$TEMPLATE",
 					"(Ljava/lang/reflect/Executable;[Ljava/lang/Object;)Ljava/lang/Object;", false);
 		} else {
 			newArray(method, methodVisitor, count);
@@ -337,7 +336,7 @@ public class Proxy {
 			methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
 			methodVisitor.visitVarInsn(Opcodes.ALOAD, count + 2);
 			methodVisitor.visitVarInsn(Opcodes.ALOAD, count + 1);
-			methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "invoke$FACTORY",
+			methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "invoke$TEMPLATE",
 					"(Ljava/lang/reflect/Executable;[Ljava/lang/Object;)Ljava/lang/Object;", false);
 		}
 		Class<?> returnType = method.getReturnType();
@@ -378,7 +377,7 @@ public class Proxy {
 		}
 	}
 
-	public Class<?> defineClass(String name, byte[] b, int off, int len, ProtectionDomain protectionDomain) {
+	private Class<?> defineClass(String name, byte[] b, int off, int len, ProtectionDomain protectionDomain) {
 		try {
 			return (Class<?>) classLoaderDefineClassMethod.invoke(classLoader, name, b, off, len, protectionDomain);
 		} catch (Exception e) {
@@ -393,37 +392,6 @@ public class Proxy {
 
 	public void setClassLoader(ClassLoader classLoader) {
 		this.classLoader = classLoader;
-	}
-
-	public static void main(String[] args) throws NoSuchMethodException, SecurityException, IllegalAccessException,
-			IllegalArgumentException, InvocationTargetException {
-		Method[] overrides = new Method[1];
-		overrides[0] = Proxy.class.getDeclaredMethod("main", new Class<?>[] {String[].class});
-		Object obj = Proxy.instance(new InvocationHandler() {
-			@Override
-			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-				System.out.println(method.getName());
-				System.out.println(args != null && args.length > 0 ? args[0] : null);
-				if (method.getName().contains("main")) {
-					return method.invoke(proxy, args);
-				}
-				return 123;
-			}
-		}, Proxy.class, overrides, new Class<?>[] {List.class});
-		List list = (List) obj;
-		// System.out.println(list.get(1));
-		Proxy proxy = (Proxy) obj;
-		Method method = null;
-		System.out.println(method = obj.getClass().getDeclaredMethod("main", String[].class));
-		// System.out.println(proxy);
-		System.out.println("gole ");
-		System.out.println(Arrays.asList(method.getParameterTypes()));
-		System.out.println(method.getParameterCount());
-		String[] params = new String[1];
-		params[0] = "1234";
-		System.out.println(params.getClass());
-		// method.invoke(obj);
-		proxy.main(new String[] {"asdf"});
 	}
 
 }

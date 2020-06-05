@@ -7,64 +7,45 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Parameter;
-import java.util.Optional;
 
-import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.util.ObjectUtils;
-import com.sun.istack.internal.Nullable;
 
 public class DependencyDescriptor {
 
-	@Nullable
+	
 	protected Parameter methodParameter;
 
-	@Nullable
+	
 	protected Field field;
 
-	@Nullable
+	
 	private volatile Annotation[] fieldAnnotations;
 
 	private final Class<?> declaringClass;
 
-	@Nullable
+	
 	private String methodName;
 
-	@Nullable
+	
 	private Class<?>[] parameterTypes;
 
 	private int parameterIndex;
 
-	@Nullable
+	
 	private String fieldName;
 
 	private final boolean required;
 
-	private final boolean eager;
-
-
-	@Nullable
+	
 	private Class<?> containingClass;
 
 
-	/**
-	 * Create a new descriptor for a method or constructor parameter. Considers the dependency as
-	 * 'eager'.
-	 * 
-	 * @param methodParameter the MethodParameter to wrap
-	 * @param required whether the dependency is required
-	 */
+	
 	public DependencyDescriptor(Parameter methodParameter, boolean required) {
 		this(methodParameter, required, true);
 	}
 
-	/**
-	 * Create a new descriptor for a method or constructor parameter.
-	 * 
-	 * @param methodParameter the MethodParameter to wrap
-	 * @param required whether the dependency is required
-	 * @param eager whether this dependency is 'eager' in the sense of eagerly resolving potential
-	 *        target beans for type matching
-	 */
+	
 	public DependencyDescriptor(Parameter methodParameter, boolean required, boolean eager) {
 
 		this.methodParameter = methodParameter;
@@ -75,40 +56,22 @@ public class DependencyDescriptor {
 		this.parameterTypes = methodParameter.getDeclaringExecutable().getParameterTypes();
 		this.containingClass = methodParameter.getDeclaringExecutable().getDeclaringClass();
 		this.required = required;
-		this.eager = eager;
 	}
 
-	/**
-	 * Create a new descriptor for a field. Considers the dependency as 'eager'.
-	 * 
-	 * @param field the field to wrap
-	 * @param required whether the dependency is required
-	 */
+	
 	public DependencyDescriptor(Field field, boolean required) {
 		this(field, required, true);
 	}
 
-	/**
-	 * Create a new descriptor for a field.
-	 * 
-	 * @param field the field to wrap
-	 * @param required whether the dependency is required
-	 * @param eager whether this dependency is 'eager' in the sense of eagerly resolving potential
-	 *        target beans for type matching
-	 */
+	
 	public DependencyDescriptor(Field field, boolean required, boolean eager) {
 		this.field = field;
 		this.declaringClass = field.getDeclaringClass();
 		this.fieldName = field.getName();
 		this.required = required;
-		this.eager = eager;
 	}
 
-	/**
-	 * Copy constructor.
-	 * 
-	 * @param original the original descriptor to create a copy from
-	 */
+	
 	public DependencyDescriptor(DependencyDescriptor original) {
 		this.methodParameter = original.methodParameter;
 		this.field = original.field;
@@ -120,144 +83,25 @@ public class DependencyDescriptor {
 		this.fieldName = original.fieldName;
 		this.containingClass = original.containingClass;
 		this.required = original.required;
-		this.eager = original.eager;
 	}
 
-	/**
-	 * Return whether this dependency is required.
-	 * <p>
-	 * Optional semantics are derived from Java 8's {@link java.util.Optional}, any variant of a
-	 * parameter-level {@code Nullable} annotation (such as from JSR-305 or the FindBugs set of
-	 * annotations), or a language-level nullable type declaration in Kotlin.
-	 */
+	
 	public boolean isRequired() {
-		if (!this.required) {
-			return false;
-		}
-
-		if (this.field != null) {
-			return !(this.field.getType() == Optional.class || hasNullableAnnotation());
-		} else {
-			return !(getMethodParameter().getType() == Optional.class);
-		}
+		return this.required;
 	}
 
-	/**
-	 * Check whether the underlying field is annotated with any variant of a {@code Nullable}
-	 * annotation, e.g. {@code javax.annotation.Nullable} or
-	 * {@code edu.umd.cs.findbugs.annotations.Nullable}.
-	 */
-	private boolean hasNullableAnnotation() {
-		for (Annotation ann : getAnnotations()) {
-			if ("Nullable".equals(ann.annotationType().getSimpleName())) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Return whether this dependency is 'eager' in the sense of eagerly resolving potential target
-	 * beans for type matching.
-	 */
-	public boolean isEager() {
-		return this.eager;
-	}
-
-
-	/**
-	 * Resolve a shortcut for this dependency against the given factory, for example taking some
-	 * pre-resolved information into account.
-	 * <p>
-	 * The resolution algorithm will first attempt to resolve a shortcut through this method before
-	 * going into the regular type matching algorithm across all beans. Subclasses may override this
-	 * method to improve resolution performance based on pre-cached information while still
-	 * receiving {@link InjectionPoint} exposure etc.
-	 * 
-	 * @param beanFactory the associated factory
-	 * @return the shortcut result if any, or {@code null} if none @ if the shortcut could not be
-	 *         obtained @since 4.3.1
-	 */
-	@Nullable
-	public Object resolveShortcut(BeanFactory beanFactory) {
-		return null;
-	}
-
-	/**
-	 * Resolve the specified bean name, as a candidate result of the matching algorithm for this
-	 * dependency, to a bean instance from the given factory.
-	 * <p>
-	 * The default implementation calls {@link BeanFactory#getBean(String)}. Subclasses may provide
-	 * additional arguments or other customizations.
-	 * 
-	 * @param beanName the bean name, as a candidate result for this dependency
-	 * @param requiredType the expected type of the bean (as an assertion)
-	 * @param beanFactory the associated factory
-	 * @return the bean instance (never {@code null}) @ if the bean could not be obtained @since
-	 *         4.3.2
-	 * @see BeanFactory#getBean(String)
-	 */
-	public Object resolveCandidate(String beanName, Class<?> requiredType, BeanFactory beanFactory) {
-
-		return beanFactory.getBean(beanName);
-	}
-
-
-	/**
-	 * Optionally set the concrete class that contains this dependency. This may differ from the
-	 * class that declares the parameter/field in that it may be a subclass thereof, potentially
-	 * substituting type variables.
-	 * 
-	 * @since 4.0
-	 */
+	
 	public void setContainingClass(Class<?> containingClass) {
 		this.containingClass = containingClass;
 	}
 
 
-	/**
-	 * Return whether a fallback match is allowed.
-	 * <p>
-	 * This is {@code false} by default but may be overridden to return {@code true} in order to
-	 * suggest to an {@link org.Factory.beans.factory.support.AutowireCandidateResolver} that a
-	 * fallback match is acceptable as well.
-	 * 
-	 * @since 4.0
-	 */
-	public boolean fallbackMatchAllowed() {
-		return false;
-	}
-
-	/**
-	 * Return a variant of this descriptor that is intended for a fallback match.
-	 * 
-	 * @since 4.0
-	 * @see #fallbackMatchAllowed()
-	 */
-	public DependencyDescriptor forFallbackMatch() {
-		return new DependencyDescriptor(this) {
-			@Override
-			public boolean fallbackMatchAllowed() {
-				return true;
-			}
-		};
-	}
-
-	/**
-	 * Determine the name of the wrapped parameter/field.
-	 * 
-	 * @return the declared name (never {@code null})
-	 */
-	@Nullable
+	
 	public String getDependencyName() {
 		return (this.field != null ? this.field.getName() : getMethodParameter().getName());
 	}
 
-	/**
-	 * Determine the declared (non-generic) type of the wrapped parameter/field.
-	 * 
-	 * @return the declared type (never {@code null})
-	 */
+	
 	public Class<?> getDependencyType() {
 		if (this.field != null) {
 			return this.field.getType();
@@ -277,7 +121,7 @@ public class DependencyDescriptor {
 		DependencyDescriptor otherPoint = (DependencyDescriptor) other;
 		return (ObjectUtils.nullSafeEquals(this.field, otherPoint.field)
 				&& ObjectUtils.nullSafeEquals(this.methodParameter, otherPoint.methodParameter)
-				&& this.required == otherPoint.required && this.eager == otherPoint.eager
+				&& this.required == otherPoint.required 
 				&& this.containingClass == otherPoint.containingClass);
 	}
 
@@ -287,9 +131,6 @@ public class DependencyDescriptor {
 		return 31 * hash + ObjectUtils.nullSafeHashCode(this.containingClass);
 	}
 
-	// ---------------------------------------------------------------------
-	// Serialization support
-	// ---------------------------------------------------------------------
 
 	private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
 		// Rely on default serialization; just initialize state after deserialization.
@@ -313,86 +154,36 @@ public class DependencyDescriptor {
 		}
 	}
 
-	/**
-	 * Return the wrapped MethodParameter, if any.
-	 * <p>
-	 * Note: Either MethodParameter or Field is available.
-	 * 
-	 * @return the MethodParameter, or {@code null} if none
-	 */
-	@Nullable
+	
+	
 	public Parameter getMethodParameter() {
 		return this.methodParameter;
 	}
 
-	/**
-	 * Return the wrapped Field, if any.
-	 * <p>
-	 * Note: Either MethodParameter or Field is available.
-	 * 
-	 * @return the Field, or {@code null} if none
-	 */
-	@Nullable
+	
+	
 	public Field getField() {
 		return this.field;
 	}
 
-	/**
-	 * Obtain the annotations associated with the wrapped field or method/constructor parameter.
-	 */
-	public Annotation[] getAnnotations() {
-		if (this.field != null) {
-			Annotation[] fieldAnnotations = this.fieldAnnotations;
-			if (fieldAnnotations == null) {
-				fieldAnnotations = this.field.getAnnotations();
-				this.fieldAnnotations = fieldAnnotations;
-			}
-			return fieldAnnotations;
-		} else {
-			return getMethodParameter().getAnnotations();
-		}
-	}
-
-	/**
-	 * Retrieve a field/parameter annotation of the given type, if any.
-	 * 
-	 * @param annotationType the annotation type to retrieve
-	 * @return the annotation instance, or {@code null} if none found
-	 * @since 4.3.9
-	 */
-	@Nullable
+	
+	
 	public <A extends Annotation> A getAnnotation(Class<A> annotationType) {
 		return (this.field != null ? this.field.getAnnotation(annotationType)
 				: getMethodParameter().getAnnotation(annotationType));
 	}
 
-	/**
-	 * Return the type declared by the underlying field or method/constructor parameter, indicating
-	 * the injection type.
-	 */
+	
 	public Class<?> getDeclaredType() {
 		return (this.field != null ? this.field.getType() : getMethodParameter().getType());
 	}
 
-	/**
-	 * Returns the wrapped member, containing the injection point.
-	 * 
-	 * @return the Field / Method / Constructor as Member
-	 */
+	
 	public Member getMember() {
 		return (this.field != null ? this.field : getMethodParameter().getDeclaringExecutable());
 	}
 
-	/**
-	 * Return the wrapped annotated element.
-	 * <p>
-	 * Note: In case of a method/constructor parameter, this exposes the annotations declared on the
-	 * method or constructor itself (i.e. at the method/constructor level, not at the parameter
-	 * level). Use {@link #getAnnotations()} to obtain parameter-level annotations in such a
-	 * scenario, transparently with corresponding field annotations.
-	 * 
-	 * @return the Field / Method / Constructor as AnnotatedElement
-	 */
+	
 	public AnnotatedElement getAnnotatedElement() {
 		return (this.field != null ? this.field : getMethodParameter());
 	}

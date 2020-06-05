@@ -5,11 +5,11 @@ import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.ResourceUtils;
 import com.bc.simple.bean.common.util.StringUtils;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.core.parser.BeanDefinitionParser;
 import com.bc.simple.bean.core.support.SimpleException;
 

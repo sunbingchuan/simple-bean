@@ -3,7 +3,7 @@ package com.bc.simple.bean.core.handler;
 import java.lang.reflect.InvocationHandler;
 
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.BeanFactory;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.Constant;

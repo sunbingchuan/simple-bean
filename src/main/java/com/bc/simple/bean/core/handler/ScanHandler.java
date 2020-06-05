@@ -14,16 +14,23 @@ import java.util.Map;
 import java.util.Set;
 
 import com.bc.simple.bean.BeanDefinition;
-import com.bc.simple.bean.BeanFactory;
 import com.bc.simple.bean.common.Resource;
 import com.bc.simple.bean.common.annotation.Component;
+import com.bc.simple.bean.common.annotation.DependsOn;
+import com.bc.simple.bean.common.annotation.Lazy;
+import com.bc.simple.bean.common.annotation.Order;
+import com.bc.simple.bean.common.annotation.Primary;
+import com.bc.simple.bean.common.annotation.Scope;
 import com.bc.simple.bean.common.config.ConfigLoader.Node;
 import com.bc.simple.bean.common.util.AnnotationUtils;
 import com.bc.simple.bean.common.util.BeanUtils;
 import com.bc.simple.bean.common.util.Constant;
 import com.bc.simple.bean.common.util.ResourceUtils;
 import com.bc.simple.bean.common.util.StringUtils;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.core.asm.ClassReader;
+import com.bc.simple.bean.core.processor.AutowiredAnnotationProcessor;
+import com.bc.simple.bean.core.processor.ConfigurationClassProcessor;
 import com.bc.simple.bean.core.support.AnnotationMetaData;
 
 @SuppressWarnings("unused")
@@ -65,13 +72,45 @@ public class ScanHandler implements Handler {
 		List<BeanDefinition> beanDefinitions = this.doScan(element);
 		this.postProcessBeanDefinition(beanDefinitions, element);
 		beanDefinitions.forEach(beanDefinition -> {
-			AnnotationUtils.processCommonDefinitionAnnotations(beanDefinition, beanDefinition.getMetadata());
+			processCommonDefinitionAnnotations(beanDefinition, beanDefinition.getMetadata());
 			beanFactory.registerBeanDefinition(beanDefinition.getBeanName(), beanDefinition);
 		});
 
 		return bd;
 	}
 
+	
+	public  void processCommonDefinitionAnnotations(BeanDefinition abd, AnnotationMetaData metadata) {
+		Map<String, Object> scope = attributesFor(metadata, Scope.class);
+		if (scope != null) {
+			abd.setScope(StringUtils.switchString(scope.get("value")));
+		}
+		Map<String, Object> lazy = attributesFor(metadata, Lazy.class);
+		if (lazy != null) {
+			abd.setLazyInit(StringUtils.switchBoolean(lazy.get("value")));
+		}
+		if (metadata.isAnnotated(Primary.class.getName())) {
+			abd.setPrimary(true);
+		}
+		if (metadata.isAnnotated(Order.class.getName())) {
+			Map<String, Object> attrs = metadata.getAttributes(Order.class.getCanonicalName());
+			Integer order = StringUtils.switchInteger(attrs.get(Constant.ATTR_VALUE));
+			if (order != null) {
+				abd.setBeanOrder(order);
+			}
+		}
+		Map<String, Object> dependsOn = attributesFor(metadata, DependsOn.class);
+		if (dependsOn != null) {
+			abd.setDependsOn(StringUtils.splitByStr(StringUtils.switchString(dependsOn.get(Constant.ATTR_VALUE)),
+					StringUtils.COMMA));
+		}
+
+	}
+	
+	private  Map<String, Object> attributesFor(AnnotationMetaData metadata, Class<?> annotationClass) {
+		return metadata.getAttributes(annotationClass.getName());
+	}
+	
 	protected List<BeanDefinition> doScan(Node element) {
 		String basePackage = element.attrString(BASE_PACKAGE_ATTRIBUTE);
 		basePackage = StringUtils.convertClassNameToResourcePath(basePackage);
@@ -106,7 +145,6 @@ public class ScanHandler implements Handler {
 						beanDefinitions.add(bdf);
 					}
 				} catch (Exception e) {
-					e.printStackTrace();
 					// ignore
 				}
 			}
@@ -145,11 +183,15 @@ public class ScanHandler implements Handler {
 			}
 
 		}
-		AnnotationUtils.registerAnnotationConfigProcessors(this.root, beanFactory);
+		registerAnnotationConfigProcessors(this.root, beanFactory);
 	}
-
-
-
+	
+	private  void registerAnnotationConfigProcessors(Node root, BeanFactory beanFactory) {
+		beanFactory.addProcessor(new AutowiredAnnotationProcessor());
+		beanFactory.setHasInstantiationAwareBeanProcessors(true);
+		beanFactory.addProcessor(new ConfigurationClassProcessor());
+	}
+	
 	public Node getRoot() {
 		return root;
 	}

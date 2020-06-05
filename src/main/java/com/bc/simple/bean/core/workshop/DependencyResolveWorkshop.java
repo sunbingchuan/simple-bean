@@ -1,6 +1,5 @@
 package com.bc.simple.bean.core.workshop;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -28,11 +27,10 @@ import org.apache.commons.logging.LogFactory;
 import com.bc.simple.bean.common.support.ExpressionUtils;
 import com.bc.simple.bean.common.util.AnnotationUtils;
 import com.bc.simple.bean.common.util.BeanUtils;
-import com.bc.simple.bean.common.util.Constant;
+import com.bc.simple.bean.common.util.BeanUtils.ClassGenericParameter;
 import com.bc.simple.bean.common.util.ObjectUtils;
 import com.bc.simple.bean.common.util.StringUtils;
-import com.bc.simple.bean.common.util.BeanUtils.ClassGenericParameter;
-import com.bc.simple.bean.core.AbstractBeanFactory;
+import com.bc.simple.bean.core.BeanFactory;
 import com.bc.simple.bean.core.support.DependencyDescriptor;
 import com.bc.simple.bean.core.support.SimpleException;
 
@@ -40,7 +38,7 @@ public class DependencyResolveWorkshop extends Workshop {
 
 	private Log log = LogFactory.getLog(this.getClass());
 
-	public DependencyResolveWorkshop(AbstractBeanFactory factory) {
+	public DependencyResolveWorkshop(BeanFactory factory) {
 		super(factory);
 	}
 
@@ -48,7 +46,7 @@ public class DependencyResolveWorkshop extends Workshop {
 			Set<String> autowiredBeanNames) {
 		try {
 			Class<?> type = descriptor.getDependencyType();
-			Object value = AnnotationUtils.findValue(descriptor.getAnnotations());
+			Object value = AnnotationUtils.findValue(descriptor.getAnnotatedElement());
 			if (value != null) {
 				value = parseValue(value);
 				return factory.getConvertService().convert(value, type);
@@ -110,16 +108,9 @@ public class DependencyResolveWorkshop extends Workshop {
 
 	private Object parseResource(DependencyDescriptor descriptor) {
 		AnnotatedElement annotatedElement = descriptor.getAnnotatedElement();
-		Annotation[] annotations = descriptor.getAnnotations();
-		for (Annotation annotation : annotations) {
-			if (annotation.annotationType().equals(Resource.class)) {
-				Map<String, Object> attribute =
-						AnnotationUtils.retrieveAnnotationAttributes(annotatedElement, annotation, false, true);
-				String name = StringUtils.toString(attribute.get(Constant.ATTR_NAME));
-				if (StringUtils.isNotEmpty(name)) {
-					return factory.getBean(name);
-				}
-			}
+		Resource resource =AnnotationUtils.findAnnotation(annotatedElement, Resource.class);
+		if (resource!=null&&StringUtils.isNotEmpty(resource.name())) {
+			return factory.getBean(resource.name());
 		}
 		return null;
 	}
@@ -129,7 +120,7 @@ public class DependencyResolveWorkshop extends Workshop {
 			String strVal = (String) value;
 			try {
 				Object val = ExpressionUtils.parseComplexExpression(strVal);
-				val = factory.getContext().getPropertyResolverHandler().resolvePlaceholders(val.toString());
+				val = factory.getContext().getPropertyResolver().resolvePlaceholders(val.toString());
 				if (val != null && StringUtils.isNotEmpty(val.toString())) {
 					strVal = val.toString();
 				}
