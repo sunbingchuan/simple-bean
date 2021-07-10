@@ -92,8 +92,10 @@ WholeProxy
  
 #相关项目
 
+bean管理通用工具
 <https://github.com/sunbingchuan/simple-helper>
  
+用simple-bean实现的简单web框架
 <https://github.com/sunbingchuan/simple-web>
  
 #入门实例
