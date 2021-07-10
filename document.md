@@ -1,4 +1,4 @@
-#simple-bean 基本结构
+# simple-bean 基本结构
 <pre>
 +-------------------------------------------------------+--------------------+
 |                                                       |                    |
@@ -46,7 +46,7 @@
 +----------------------------------------------------------------------------+
 </pre>
 
-#sp文件基本配置  
+# sp文件基本配置  
 sp 文件时simple-bean 框架自带的简单配置形式，
 主要逻辑是用'\t'符号来标识层级关系，用':'表示属性。 
  
@@ -93,7 +93,7 @@ aa
 			xx:yy
 </pre>
 
-###Context基本属性配置
+### Context基本属性配置
 
 + auto-init  
 <p>是否自动生成单例 true/false ，默认false
@@ -108,7 +108,7 @@ aa
 + default-autowired-executables  
 <p>同上对应builder的autowired-executable属性。
 
-###节点配置
+### 节点配置
 + builder 
 
 	+ name 
@@ -233,11 +233,11 @@ aa
 
 
 
-#注解
+# 注解
 
-#部分工具类 helper简介
-##PatternHelper
-###表达式匹配规则
+# 部分工具类 helper简介
+## PatternHelper
+### 表达式匹配规则
 <pre>
 '*' 等效于 正则'.*', '?' 等效于 正则'.'
 例如：abc* 可以匹配 abcde，abc?e 可以匹配abcde
@@ -249,21 +249,21 @@ aa
 例如：abc..xx 匹配  abc.d.xx.xx
 </pre>
 
-##ClassHelper
+## ClassHelper
 
-##ExpressionHelper
+## ExpressionHelper
 
-##MathExpressionHelper
+## MathExpressionHelper
 
-##AnnotationHelper、AnnotationAttributeHelper
+## AnnotationHelper、AnnotationAttributeHelper
 
-##PatternHelper
+## PatternHelper
 
-##GenericTypeHelper
+## GenericTypeHelper
 
-##ProxyHelper
+## ProxyHelper
 
-##ResourceHelper
+## ResourceHelper
 
 以上helper工具参考使用实例
 
