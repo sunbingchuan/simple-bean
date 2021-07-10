@@ -1,2 +1,2 @@
-scan=com.bc.simple.bean.core.handler.ScanHandler
-aop=com.bc.simple.bean.core.handler.AopHandler
+scan=com.chuan.simple.bean.core.handler.ScanHandler
+aspect=com.chuan.simple.bean.core.handler.AspectHandler
