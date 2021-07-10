@@ -265,3 +265,7 @@ aa
 
 ##ResourceHelper
 
+以上helper工具参考使用实例
+
+<https://github.com/sunbingchuan/simple-bean-example>
+
