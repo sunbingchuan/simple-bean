@@ -24,12 +24,15 @@ Loader是配置加载器，主要作用是加载配置文件；Parser是配置�
 Handler是配置元素处理器，处理像scan、aspect的扩展的配置元素；Processor是配置元素控制器，对应相应的
 配置元素对simple-bean进行控制；Element是Builder控制元素，主要作用是控制bean的各种属性；ElementInstaller
 是Element对应的安装器；Helper则是囊括了各种辅助工具的助手系统。
+
 #配置系统
 simple-bean的配置系统比较简单，可能缺乏特殊字符集、编码格式等的特殊处理，因为我这里是本着极简的原则，不太重要
 的功能处理就略去或者留下空间给诸君实现扩展了。一个配置实体类Node，支持配置节点属性和子节点。配置文件格式详见api
 文档。配置文件加载器Loader原理也很有意思，感兴趣的诸君可以阅读测试源码。配置解析器将Node配置转化为Builder或
 Builder配置。
+
 #核心功能系统
+
 ##Builder
 Builder中存有bean构建的基本元素。
 ##SimpleContext
@@ -47,15 +50,25 @@ Element是Builder控制元素，主要作用是控制bean的各种属性
 ##ElementInstaller
 ElementInstaller是Element对应的安装器
 ##Helper
+
 ###field：字段工具  
+
 ###generic：泛型工具  
+
 ###method：方法工具  
-###class：类工具  
+
+###class：类工具 
+ 
 ###common：通用工具  
+
 ###expression：包含数学表达式解析工具和参数表达式解析工具。
+
 参数表达式工具用于解析表达式中的参数，数学表达式用于解析表达式中的一些运算。  
+
 ###proxy：字节码工具。
-三种实现方式：  
+
+三种实现方式：
+  
 WrapProxy  
 创建一个继承原来类的新类并持有原类的实例，将所有调用到原来类的方法指向所持有的实例，并在调用前执行切面方法。
 特点：只支持public方法的切面，原类必须有一个无参public默认构造函数
@@ -75,6 +88,7 @@ WholeProxy
 
 
 #联系方式
+
 1254598551@qq.com
 电话/微信：15038156216
 
