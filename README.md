@@ -88,7 +88,7 @@ WholeProxy
 
 # maven配置
 
-<pre>
+```xml
 		<dependency>
 			<groupId>io.github.sunbingchuan</groupId>
 			<artifactId>simple-helper</artifactId>
@@ -106,7 +106,7 @@ WholeProxy
 			<artifactId>simple-web</artifactId>
 			<version>1.0.1</version>
 		</dependency>
-</pre>
+```
 
 # 项目文档
 
