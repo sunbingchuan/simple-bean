@@ -2,10 +2,55 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>com.chuan</groupId>
+	<groupId>io.github.sunbingchuan</groupId>
 	<artifactId>simple-bean</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.1</version>
+	<name>Simple Bean</name>
+	<description>Tools for managing bean.</description>
+	<url>https://github.com/sunbingchuan/simple-bean</url>
+	<licenses>
+		<license>
+			<name>Apache License, Version 2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+	<developers>
+		<developer>
+			<name>SunBingchuan</name>
+			<email>1254598551@qq.com</email>
+			<url>https://github.com/sunbingchuan</url>
+		</developer>
+	</developers>
+	<scm>
+		<url>https://github.com/sunbingchuan/simple-bean</url>
+		<connection>https://github.com/sunbingchuan/simple-bean.git</connection>
+		<developerConnection>https://github.com/sunbingchuan</developerConnection>
+	</scm>
+	<distributionManagement>
+		<snapshotRepository>
+			<id>ossrh</id>
+			<url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+		</snapshotRepository>
+		<repository>
+			<id>ossrh</id>
+			<url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+		</repository>
+	</distributionManagement>
+	<dependencies>
+		<dependency>
+			<groupId>io.github.sunbingchuan</groupId>
+			<artifactId>simple-helper</artifactId>
+			<version>1.0.1</version>
+		</dependency>
+	</dependencies>
 	<build>
+		<resources>
+			<resource>
+				<directory>src/main/java/META-INF</directory>
+				<targetPath>META-INF/</targetPath>
+			</resource>
+		</resources>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -22,87 +67,56 @@
 				</configuration>
 			</plugin>
 			<plugin>
-				<artifactId>maven-deploy-plugin</artifactId>
-				<version>2.8.1</version>
-				<configuration>
-					<altDeploymentRepository>internal.repo::default::file://${project.build.directory}/mvn-repo</altDeploymentRepository>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>com.github.github</groupId>
-				<artifactId>site-maven-plugin</artifactId>
-				<version>0.9</version>
-				<configuration>
-					<message>Maven artifacts for ${project.version}</message>
-					<noJekyll>true</noJekyll>
-					<outputDirectory>${project.build.directory}/mvn-repo</outputDirectory><!--本地jar地址 -->
-					<branch>refs/heads/master</branch><!--分支的名称 -->
-					<merge>true</merge>
-					<includes>
-						<include>**/*</include>
-					</includes>
-					<repositoryName>simple-bean-repo</repositoryName><!--对应github上创建的仓库名称 
-						name -->
-					<repositoryOwner>bingchuan01</repositoryOwner><!--github 仓库所有者即登录用户名 -->
-				</configuration>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>3.0.1</version>
 				<executions>
 					<execution>
+						<id>attach-sources</id>
 						<goals>
-							<goal>site</goal>
+							<goal>jar-no-fork</goal>
 						</goals>
-						<phase>deploy</phase>
 					</execution>
 				</executions>
 			</plugin>
 			<plugin>
-				<groupId>com.mycila</groupId>
-				<artifactId>license-maven-plugin</artifactId>
-				<version>3.0</version>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>2.9.1</version>
 				<executions>
 					<execution>
-						<phase>generate-sources</phase>
+						<id>attach-javadocs</id>
 						<goals>
-							<goal>remove</goal>
-							<goal>format</goal>
+							<goal>jar</goal>
 						</goals>
 					</execution>
 				</executions>
-				<configuration>
-					<quiet>true</quiet>
-					<!--HEADER文件 -->
-					<header>E:\workplace\eclipse\common\HEADER</header>
-					<!--排除文件 -->
-					<excludes>
-						<exclude>**/*.properties</exclude>
-						<exclude>*.sh</exclude>
-						<exclude>*.yml</exclude>
-						<exclude>.editorconfig</exclude>
-						<exclude>.gitignore</exclude>
-						<exclude>**/*.md</exclude>
-						<exclude>**/*.xml</exclude>
-					</excludes>
-					<!--严格检查 -->
-					<strictCheck>true</strictCheck>
-					<mapping>
-						<java>SLASHSTAR_STYLE</java>
-					</mapping>
-				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-gpg-plugin</artifactId>
+				<version>1.1</version>
+				<executions>
+					<execution>
+						<id>sign-artifacts</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>sign</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
-	<dependencies>
-		<dependency>
-			<groupId>com.chuan</groupId>
-			<artifactId>simple-helper</artifactId>
-			<version>1.0.0</version>
-		</dependency>
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>4.8.2</version>
-		</dependency>
-	</dependencies>
-	<properties>
-		<github.global.server>github</github.global.server>
-	</properties>
+	<profiles>
+		<profile>
+			<id>disable-javadoc-doclint</id>
+			<activation>
+				<jdk>[1.8,)</jdk>
+			</activation>
+			<properties>
+				<additionalparam>-Xdoclint:none</additionalparam>
+			</properties>
+		</profile>
+	</profiles>
 </project>
