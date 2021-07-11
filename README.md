@@ -89,23 +89,23 @@ WholeProxy
 # maven配置
 
 ```xml
-		<dependency>
-			<groupId>io.github.sunbingchuan</groupId>
-			<artifactId>simple-helper</artifactId>
-			<version>1.0.1</version>
-		</dependency>
-  and/or
-  <dependency>
-			<groupId>io.github.sunbingchuan</groupId>
-			<artifactId>simple-bean</artifactId>
-			<version>1.0.1</version>
-		</dependency>
-  and/or
-  <dependency>
-			<groupId>io.github.sunbingchuan</groupId>
-			<artifactId>simple-web</artifactId>
-			<version>1.0.1</version>
-		</dependency>
+<dependency>
+	<groupId>io.github.sunbingchuan</groupId>
+	<artifactId>simple-helper</artifactId>
+	<version>1.0.1</version>
+</dependency>
+<!-- and/or -->
+<dependency>
+	<groupId>io.github.sunbingchuan</groupId>
+	<artifactId>simple-bean</artifactId>
+	<version>1.0.1</version>
+</dependency>
+<!-- and/or -->
+<dependency>
+	<groupId>io.github.sunbingchuan</groupId>
+	<artifactId>simple-web</artifactId>
+	<version>1.0.1</version>
+</dependency>
 ```
 
 # 项目文档
