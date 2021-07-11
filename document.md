@@ -265,7 +265,7 @@ aa
 
 ## ResourceHelper
 
-以上helper工具参考使用实例
+框架使用和以上helper工具使用参考使用实例
 
 <https://github.com/sunbingchuan/simple-bean-example>
 
