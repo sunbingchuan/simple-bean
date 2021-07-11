@@ -86,6 +86,28 @@ WholeProxy
 <p>simple-bean自带的web功能比较基础，有很大的扩展和实现空间，自然以后有机会也可能会扩展一下，比如像spring-web能提供的
 参数实体映射之类的。我这里只是给诸君留足扩展的空间，有待更多有识之士的参与。
 
+# maven配置
+
+<pre>
+		<dependency>
+			<groupId>io.github.sunbingchuan</groupId>
+			<artifactId>simple-helper</artifactId>
+			<version>1.0.1</version>
+		</dependency>
+  and/or
+  <dependency>
+			<groupId>io.github.sunbingchuan</groupId>
+			<artifactId>simple-bean</artifactId>
+			<version>1.0.1</version>
+		</dependency>
+  and/or
+  <dependency>
+			<groupId>io.github.sunbingchuan</groupId>
+			<artifactId>simple-web</artifactId>
+			<version>1.0.1</version>
+		</dependency>
+</pre>
+
 # 项目文档
 
 <https://github.com/sunbingchuan/simple-bean/blob/master/document.md>
